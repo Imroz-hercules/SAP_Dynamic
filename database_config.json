@@ -1,0 +1,17 @@
+{
+    "postgresql": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "sap",
+      "username": "postgres",
+      "password": "Hercules"
+    },
+    "mssql": {
+      "server": "localhost",
+      "database": "HerculesV2",
+      "username": "Hercules",
+      "password": "nl6oUpr"
+    }
+  }
+  
+  

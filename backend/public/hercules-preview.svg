@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark Gradient Background -->
+  <defs>
+    <radialGradient id="backgroundGradient" cx="50%" cy="50%" r="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#020617;stop-opacity:1" />
+    </radialGradient>
+    
+    <linearGradient id="titleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Cyber Grid Pattern -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#06b6d4" stroke-width="0.5" opacity="0.3"/>
+    </pattern>
+    
+    <!-- Glow Filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#backgroundGradient)"/>
+  
+  <!-- Grid Pattern -->
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.3"/>
+  
+  <!-- Central Glow Effect -->
+  <circle cx="600" cy="315" r="300" fill="url(#titleGradient)" opacity="0.1"/>
+  
+  <!-- Hercules Logo Area (Placeholder) -->
+  <circle cx="200" cy="200" r="60" fill="#06b6d4" opacity="0.8" filter="url(#glow)"/>
+  <text x="200" y="210" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="white">H</text>
+  
+  <!-- Main Title -->
+  <text x="600" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="56" font-weight="bold" fill="url(#titleGradient)" filter="url(#glow)">
+    FSmart Factory Management
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="600" y="300" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="500" fill="#94a3b8">
+    Production Intelligence Dashboard
+  </text>
+  
+  <!-- Key Features -->
+  <text x="600" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#64748b">
+    Advanced Industrial Monitoring • Real-time Analytics • Intelligent Production Control
+  </text>
+  
+  <!-- Decorative Elements -->
+  <rect x="300" y="450" width="600" height="2" fill="url(#titleGradient)" opacity="0.6"/>
+  
+  <!-- Tech Elements -->
+  <circle cx="100" cy="500" r="3" fill="#06b6d4" opacity="0.7">
+    <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="1100" cy="150" r="3" fill="#3b82f6" opacity="0.7">
+    <animate attributeName="opacity" values="0.3;1;0.3" dur="2.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="950" cy="550" r="3" fill="#8b5cf6" opacity="0.7">
+    <animate attributeName="opacity" values="0.3;1;0.3" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Bottom Branding -->
+  <text x="600" y="580" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#475569">
+    www.herculesv2.com
+  </text>
+</svg>

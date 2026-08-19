@@ -1,0 +1,44 @@
+name: OTA Deploy SAP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest code
+        shell: cmd
+        run: |
+          cd /d "C:\Users\Administrator\Documents\C3381_Sap\C3381_Sap_Git\C3381_Sap"
+          git status
+          git reset --hard
+          git clean -fd
+          git pull origin main
+
+      - name: Install backend dependencies
+        shell: cmd
+        run: |
+          cd /d C:\Users\Administrator\Documents\C3381_Sap\C3381_Sap_Git\C3381_Sap\backend
+          "C:\Program Files\Python311\python.exe" -m pip install -r requirements.txt
+
+      - name: Install frontend dependencies
+        shell: cmd
+        run: |
+          cd /d C:\Users\Administrator\Documents\C3381_Sap\C3381_Sap_Git\C3381_Sap\Frontend
+          npm install
+
+      - name: Restart services
+        shell: cmd
+        run: |
+          C:\nssm\nssm.exe restart Backend
+          C:\nssm\nssm.exe restart Frontend
+
+      - name: Check services
+        shell: cmd
+        run: |
+          C:\nssm\nssm.exe status Backend
+          C:\nssm\nssm.exe status Frontend

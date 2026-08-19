@@ -1,0 +1,51 @@
+
+# =====================================================================
+# Hercules SAP System - Backend Dependencies
+# =====================================================================
+# Install all dependencies: pip install -r requirements.txt
+# =====================================================================
+
+# Web Framework
+Flask==3.0.0
+flask-cors==4.0.0
+Werkzeug==3.0.1
+
+# Database
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9        # PostgreSQL adapter
+pyodbc==5.0.1                  # SQL Server adapter
+
+# Authentication & Security
+bcrypt==4.1.2                  # Password hashing
+PyJWT==2.8.0                   # JWT tokens (if used)
+
+# HTTP Requests
+requests==2.31.0               # SAP API calls
+
+# Scheduling
+schedule==1.2.1                # Background job scheduler
+APScheduler==3.10.4            # Advanced scheduler
+
+# Date & Time
+python-dateutil==2.8.2         # Date utilities
+pytz==2023.3                   # Timezone support
+
+# Data Processing
+pandas==2.1.4                  # Data manipulation (if used)
+numpy==1.26.2                  # Numerical operations (if used)
+openpyxl==3.1.2                # Excel file reading/writing
+
+# Development Tools
+python-dotenv==1.0.0           # Environment variables
+
+# Logging & Monitoring
+colorlog==6.8.0                # Colored logging (optional)
+
+# =====================================================================
+# NOTES:
+# =====================================================================
+# 1. Python version: 3.8 or higher recommended
+# 2. For Windows: Install Visual C++ Build Tools if psycopg2-binary fails
+# 3. For SQL Server: Install ODBC Driver 17 for SQL Server
+# 4. PostgreSQL: Requires PostgreSQL 12 or higher
+# =====================================================================

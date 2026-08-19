@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Build / dist
+dist/
+build/
+
+# Backend dist internal compiled files
+backend/dist/
+
+# Logs
+*.log
+
+# Cursor logs
+.cursor/
+
+# Netlify
+Frontend/.netlify/
+
+# Emulator (if not required)
+scada-emulator/
+
+# OS files
+.DS_Store
+Thumbs.db

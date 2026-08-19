@@ -1,0 +1,2634 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Professional Light Theme with High Contrast */
+:root.light .light\:bg-white { background-color: #ffffff; }
+:root.light .light\:bg-gray-50 { background-color: #f8fafc; }
+:root.light .light\:bg-gray-100 { background-color: #f1f5f9; }
+:root.light .light\:bg-gray-200 { background-color: #e2e8f0; }
+:root.light .light\:bg-gray-800 { background-color: #1e293b; }
+:root.light .light\:bg-gray-900 { background-color: #0f172a; }
+
+/* Light theme transparencies */
+:root.light .light\:bg-white\/80 { background-color: rgba(255, 255, 255, 0.8); }
+:root.light .light\:bg-white\/90 { background-color: rgba(255, 255, 255, 0.9); }
+:root.light .light\:bg-white\/95 { background-color: rgba(255, 255, 255, 0.95); }
+:root.light .light\:bg-gray-100\/50 { background-color: rgba(241, 245, 249, 0.5); }
+:root.light .light\:bg-gray-200\/50 { background-color: rgba(226, 232, 240, 0.5); }
+
+/* Light theme text colors */
+:root.light .light\:text-gray-900 { color: #0f172a; }
+:root.light .light\:text-gray-800 { color: #1e293b; }
+:root.light .light\:text-gray-700 { color: #334155; }
+:root.light .light\:text-gray-600 { color: #475569; }
+:root.light .light\:text-gray-500 { color: #64748b; }
+:root.light .light\:text-white { color: #ffffff; }
+
+/* Light theme borders */
+:root.light .light\:border-gray-200 { border-color: #e2e8f0; }
+:root.light .light\:border-gray-300 { border-color: #cbd5e1; }
+:root.light .light\:border-gray-200\/50 { border-color: rgba(226, 232, 240, 0.5); }
+
+/* Light theme hover states */
+:root.light .light\:hover\:bg-gray-50:hover { background-color: #f8fafc; }
+:root.light .light\:hover\:bg-gray-100:hover { background-color: #f1f5f9; }
+:root.light .light\:hover\:bg-gray-200:hover { background-color: #e2e8f0; }
+:root.light .light\:hover\:bg-gray-300\/50:hover { background-color: rgba(203, 213, 225, 0.5); }
+
+/* Light theme hover text colors */
+:root.light .light\:hover\:text-gray-900:hover { color: #0f172a; }
+:root.light .light\:hover\:text-blue-600:hover { color: #2563eb; }
+
+/* Light theme accent colors */
+:root.light .light\:text-blue-600 { color: #2563eb; }
+:root.light .light\:text-blue-700 { color: #1d4ed8; }
+:root.light .light\:text-green-600 { color: #16a34a; }
+:root.light .light\:text-green-700 { color: #15803d; }
+:root.light .light\:text-orange-600 { color: #ea580c; }
+:root.light .light\:text-red-600 { color: #dc2626; }
+:root.light .light\:text-purple-600 { color: #9333ea; }
+
+/* Light theme gradients */
+:root.light .light\:from-blue-500\/20 { --tw-gradient-from: rgba(59, 130, 246, 0.2); --tw-gradient-to: rgba(59, 130, 246, 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+:root.light .light\:to-cyan-500\/20 { --tw-gradient-to: rgba(6, 182, 212, 0.2); }
+:root.light .light\:from-gray-100\/50 { --tw-gradient-from: rgba(241, 245, 249, 0.5); --tw-gradient-to: rgba(241, 245, 249, 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+:root.light .light\:to-transparent { --tw-gradient-to: transparent; }
+
+/* Light theme shadows */
+:root.light .light\:shadow-sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+:root.light .light\:shadow-md { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+:root.light .light\:shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+:root.light .light\:shadow-xl { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+
+/* Force light theme overrides for complex components */
+:root.light * { 
+  --tw-bg-opacity: 1; 
+}
+
+/* Comprehensive light theme overrides for all dark components */
+:root.light .bg-slate-950 { background-color: #ffffff !important; }
+:root.light .bg-slate-900 { background-color: #f8fafc !important; }
+:root.light .bg-slate-800 { background-color: #f1f5f9 !important; }
+:root.light .bg-slate-700 { background-color: #e2e8f0 !important; }
+:root.light .bg-slate-600 { background-color: #cbd5e1 !important; }
+
+/* Background with opacity overrides */
+:root.light .bg-slate-950\/95 { background-color: rgba(255, 255, 255, 0.95) !important; }
+:root.light .bg-slate-950\/50 { background-color: rgba(248, 250, 252, 0.8) !important; }
+:root.light .bg-slate-900\/90 { background-color: rgba(248, 250, 252, 0.9) !important; }
+:root.light .bg-slate-900\/80 { background-color: rgba(255, 255, 255, 0.9) !important; }
+:root.light .bg-slate-800\/40 { background-color: rgba(255, 255, 255, 0.9) !important; }
+:root.light .bg-slate-800\/30 { background-color: rgba(241, 245, 249, 0.9) !important; }
+
+/* Text color overrides */
+:root.light .text-slate-400 { color: #64748b !important; }
+:root.light .text-slate-300 { color: #475569 !important; }
+:root.light .text-white { color: #0f172a !important; }
+
+/* Border color overrides */
+:root.light .border-slate-700 { border-color: #e2e8f0 !important; }
+:root.light .border-slate-700\/50 { border-color: rgba(226, 232, 240, 0.8) !important; }
+:root.light .border-slate-700\/30 { border-color: rgba(226, 232, 240, 0.6) !important; }
+:root.light .border-slate-600 { border-color: #cbd5e1 !important; }
+
+/* Hover state overrides */
+:root.light .hover\:bg-slate-700\/50:hover { background-color: rgba(226, 232, 240, 0.5) !important; }
+:root.light .hover\:bg-slate-800\/50:hover { background-color: rgba(241, 245, 249, 0.8) !important; }
+
+/* Light theme hidden utility */
+:root.light .light\:hidden { display: none !important; }
+
+/* Modern Light Theme Components */
+
+/* Buttons Light Theme */
+:root.light .bg-cyan-500 { background-color: #0891b2 !important; }
+:root.light .bg-cyan-600 { background-color: #0e7490 !important; }
+:root.light .hover\:bg-cyan-600:hover { background-color: #0e7490 !important; }
+:root.light .bg-blue-500 { background-color: #3b82f6 !important; }
+:root.light .bg-blue-600 { background-color: #2563eb !important; }
+:root.light .hover\:bg-blue-600:hover { background-color: #2563eb !important; }
+
+/* Tabs Light Theme */
+:root.light .bg-cyan-500\/20 { background-color: rgba(8, 145, 178, 0.1) !important; }
+:root.light .text-cyan-400 { color: #0891b2 !important; }
+
+/* Fix Tabs text visibility in light mode - ULTRA AGGRESSIVE RULES */
+:root.light [role="tablist"],
+:root.light .bg-gray-100[role="tablist"],
+:root.light button[role="tablist"] {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Inactive tabs - dark text */
+:root.light [role="tab"],
+:root.light button[role="tab"],
+:root.light [data-state="inactive"][role="tab"],
+:root.light [role="tab"]:not([data-state="active"]) {
+  color: #1f2937 !important;
+  background-color: transparent !important;
+}
+
+:root.light [role="tab"]:hover,
+:root.light button[role="tab"]:hover,
+:root.light [role="tab"]:not([data-state="active"]):hover {
+  background-color: #e2e8f0 !important;
+  color: #1f2937 !important;
+}
+
+/* Active tab - blue background, white text */
+:root.light [role="tab"][data-state="active"],
+:root.light button[role="tab"][data-state="active"],
+:root.light [data-state="active"][role="tab"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+/* Fix ALL icons inside inactive tabs - force dark color */
+:root.light [role="tab"]:not([data-state="active"]) svg,
+:root.light [role="tab"]:not([data-state="active"]) * svg,
+:root.light button[role="tab"]:not([data-state="active"]) svg,
+:root.light [role="tab"]:not([data-state="active"]) path,
+:root.light [role="tab"]:not([data-state="active"]) * path {
+  color: #1f2937 !important;
+  stroke: #1f2937 !important;
+  fill: none !important;
+}
+
+/* Fix ALL icons inside active tabs - force white color */
+:root.light [role="tab"][data-state="active"] svg,
+:root.light [role="tab"][data-state="active"] * svg,
+:root.light button[role="tab"][data-state="active"] svg,
+:root.light [role="tab"][data-state="active"] path,
+:root.light [role="tab"][data-state="active"] * path {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
+/* Fix ALL text inside tabs */
+:root.light [role="tab"] span,
+:root.light [role="tab"]:not([data-state="active"]) span {
+  color: #1f2937 !important;
+}
+
+:root.light [role="tab"][data-state="active"] span {
+  color: #ffffff !important;
+}
+
+:root.light [role="tabpanel"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Override any Tailwind classes that might interfere */
+:root.light .text-gray-700[role="tab"] {
+  color: #1f2937 !important;
+}
+
+:root.light .text-gray-700[role="tab"][data-state="active"] {
+  color: #ffffff !important;
+}
+
+/* Cards and Sections */
+:root.light .card-light-theme {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Tables */
+:root.light .table-light-theme {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+:root.light .table-header-light-theme {
+  background-color: #f8fafc !important;
+  color: #374151 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+:root.light .table-row-light-theme {
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+:root.light .table-row-light-theme:hover {
+  background-color: #f9fafb !important;
+}
+
+/* Input Fields Light Theme */
+:root.light input[type="text"],
+:root.light input[type="date"],
+:root.light select,
+:root.light .bg-slate-800 input {
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+}
+
+:root.light input[type="text"]:focus,
+:root.light input[type="date"]:focus,
+:root.light select:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* KPI Cards and Status Badges */
+:root.light .text-green-400 { color: #22c55e !important; }
+:root.light .text-orange-400 { color: #f97316 !important; }
+:root.light .text-red-400 { color: #ef4444 !important; }
+:root.light .text-blue-400 { color: #3b82f6 !important; }
+:root.light .text-purple-400 { color: #a855f7 !important; }
+
+/* Status indicators */
+:root.light .bg-green-500\/20 { background-color: rgba(34, 197, 94, 0.1) !important; }
+:root.light .bg-orange-500\/20 { background-color: rgba(249, 115, 22, 0.1) !important; }
+
+/* Calendar Light Mode - Ensure dates are visible - ULTRA AGGRESSIVE */
+:root.light .rdp button,
+:root.light .rdp button *,
+:root.light [class*="rdp"] button,
+:root.light [class*="rdp"] button * {
+  color: #1e293b !important;
+}
+
+/* All day buttons in calendar */
+:root.light .rdp button[class*="day"],
+:root.light .rdp button[role="gridcell"] button,
+:root.light .rdp table button,
+:root.light .rdp tbody button {
+  color: #1e293b !important;
+}
+
+/* Regular day buttons - not selected, not disabled, not outside */
+:root.light .rdp button[class*="day"]:not([class*="day_selected"]):not([class*="day_disabled"]):not([class*="day_outside"]):not([aria-selected="true"]),
+:root.light .rdp button:not([class*="day_selected"]):not([class*="day_disabled"]):not([class*="day_outside"]):not([aria-selected="true"]):not([class*="nav"]) {
+  color: #1e293b !important;
+  background-color: transparent !important;
+}
+
+/* Selected day */
+:root.light .rdp button[class*="day"][aria-selected="true"],
+:root.light .rdp button[class*="day_selected"],
+:root.light .rdp button[aria-selected="true"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+/* Outside month days */
+:root.light .rdp button[class*="day_outside"]:not([class*="day_selected"]):not([aria-selected="true"]),
+:root.light .rdp button[class*="day-outside"]:not([class*="day_selected"]):not([aria-selected="true"]) {
+  color: #94a3b8 !important;
+}
+
+/* Today - not selected */
+:root.light .rdp button[class*="day_today"]:not([class*="day_selected"]):not([aria-selected="true"]),
+:root.light .rdp button[class*="day-today"]:not([class*="day_selected"]):not([aria-selected="true"]) {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+
+/* Today AND selected - ensure white text on blue background */
+:root.light .rdp button[class*="day_today"][class*="day_selected"],
+:root.light .rdp button[class*="day_today"][aria-selected="true"],
+:root.light .rdp button[class*="day-today"][class*="day_selected"],
+:root.light .rdp button[class*="day-today"][aria-selected="true"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* Ensure selected date number and all child elements are white */
+:root.light .rdp button[aria-selected="true"],
+:root.light .rdp button[class*="day_selected"],
+:root.light .rdp button[aria-selected="true"] *,
+:root.light .rdp button[class*="day_selected"] * {
+  color: #ffffff !important;
+}
+
+/* Range start and end dates */
+:root.light .rdp button[class*="day-range-start"],
+:root.light .rdp button[class*="range-start"],
+:root.light .rdp button[class*="day_range_start"],
+:root.light .rdp button[class*="day-range-end"],
+:root.light .rdp button[class*="range-end"],
+:root.light .rdp button[class*="day_range_end"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+:root.light .rdp button[class*="day-range-start"] *,
+:root.light .rdp button[class*="range-start"] *,
+:root.light .rdp button[class*="day_range_start"] *,
+:root.light .rdp button[class*="day-range-end"] *,
+:root.light .rdp button[class*="range-end"] *,
+:root.light .rdp button[class*="day_range_end"] * {
+  color: #ffffff !important;
+}
+
+/* Buttons with borders that are selected - ensure text is visible */
+:root.light .rdp button[style*="border"][aria-selected="true"],
+:root.light .rdp button[class*="border"][aria-selected="true"],
+:root.light .rdp button[style*="border"][class*="day_selected"],
+:root.light .rdp button[class*="border"][class*="day_selected"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+:root.light .rdp button[style*="border"][aria-selected="true"] *,
+:root.light .rdp button[class*="border"][aria-selected="true"] *,
+:root.light .rdp button[style*="border"][class*="day_selected"] *,
+:root.light .rdp button[class*="border"][class*="day_selected"] * {
+  color: #ffffff !important;
+}
+
+/* Override any muted or foreground colors */
+:root.light .rdp button.text-muted-foreground,
+:root.light .rdp button[class*="text-muted"],
+:root.light .rdp button[class*="text-foreground"],
+:root.light .rdp button[class*="accent-foreground"] {
+  color: #1e293b !important;
+}
+
+/* Force all non-nav buttons to have dark text */
+:root.light .rdp button:not([class*="nav"]):not([disabled]):not([aria-selected="true"]) {
+  color: #1e293b !important;
+}
+
+/* Calendar Popover Light Mode - Direct targeting */
+:root.light .calendar-popover-light button,
+:root.light .calendar-popover-light button *,
+:root.light .calendar-popover-light .rdp button,
+:root.light .calendar-popover-light .rdp button * {
+  color: #1e293b !important;
+}
+
+:root.light .calendar-popover-light button[aria-selected="true"],
+:root.light .calendar-popover-light button[class*="day_selected"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+:root.light .calendar-popover-light button[class*="day_outside"]:not([aria-selected="true"]) {
+  color: #94a3b8 !important;
+}
+
+:root.light .calendar-popover-light button[class*="day_today"]:not([aria-selected="true"]) {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+
+/* Today AND selected in popover */
+:root.light .calendar-popover-light button[class*="day_today"][aria-selected="true"],
+:root.light .calendar-popover-light button[class*="day_today"][class*="day_selected"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* Ensure selected date number is white in popover */
+:root.light .calendar-popover-light button[aria-selected="true"] *,
+:root.light .calendar-popover-light button[class*="day_selected"] * {
+  color: #ffffff !important;
+}
+
+/* Range dates in popover */
+:root.light .calendar-popover-light button[class*="day-range-start"],
+:root.light .calendar-popover-light button[class*="day-range-end"],
+:root.light .calendar-popover-light button[class*="day_range_start"],
+:root.light .calendar-popover-light button[class*="day_range_end"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+:root.light .calendar-popover-light button[class*="day-range-start"] *,
+:root.light .calendar-popover-light button[class*="day-range-end"] *,
+:root.light .calendar-popover-light button[class*="day_range_start"] *,
+:root.light .calendar-popover-light button[class*="day_range_end"] * {
+  color: #ffffff !important;
+}
+
+/* Selected dates with borders in popover */
+:root.light .calendar-popover-light button[style*="border"][aria-selected="true"],
+:root.light .calendar-popover-light button[class*="border"][aria-selected="true"] {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+:root.light .calendar-popover-light button[style*="border"][aria-selected="true"] *,
+:root.light .calendar-popover-light button[class*="border"][aria-selected="true"] * {
+  color: #ffffff !important;
+}
+:root.light .bg-red-500\/20 { background-color: rgba(239, 68, 68, 0.1) !important; }
+
+/* Professional shadows for light mode */
+:root.light .shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important; }
+:root.light .shadow-xl { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important; }
+
+/* Button text visibility fixes for light mode */
+:root.light button[class*="outline"]:not([class*="bg-cyan"]) {
+  background-color: #ffffff !important;
+  color: inherit !important;
+}
+
+:root.light button[class*="border-green"] {
+  color: #059669 !important;
+}
+
+:root.light button[class*="border-blue"] {
+  color: #2563eb !important;
+}
+
+:root.light button[class*="border-slate"] {
+  color: #374151 !important;
+}
+
+:root.light button[class*="border-gray"] {
+  color: #374151 !important;
+}
+
+:root.light button[class*="border-cyan"] {
+  color: #0891b2 !important;
+}
+
+:root.light button[class*="bg-cyan"] {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+}
+
+:root.light button[class*="bg-cyan"]:hover {
+  background-color: #0e7490 !important;
+  color: #ffffff !important;
+}
+
+:root.light button[class*="border-red"] {
+  color: #dc2626 !important;
+}
+
+:root.light button[class*="bg-red"] {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+:root.light button[class*="bg-red"]:hover {
+  background-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+/* Fix scrolling and layout issues */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Enhanced smooth scrolling for all elements */
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  height: 100vh;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* System text format – applied app-wide via TextPreferencesContext */
+html,
+body,
+#root {
+  font-size: var(--app-font-size, 1rem);
+  font-family: var(--app-font-family, inherit);
+  font-weight: var(--app-font-weight, normal);
+  font-style: var(--app-font-style, normal);
+  text-decoration: var(--app-text-decoration, none);
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(8, 145, 178, 0.6), rgba(34, 197, 94, 0.6));
+  border-radius: 4px;
+  border: 1px solid rgba(8, 145, 178, 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(8, 145, 178, 0.8), rgba(34, 197, 94, 0.8));
+}
+
+::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(8, 145, 178, 0.6) rgba(15, 23, 42, 0.5);
+}
+
+/* Smooth scroll animation class */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced smooth scrolling for main content areas */
+main {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+/* Smooth transitions for page navigation */
+.page-transition {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Enhanced Dashboard Editor Animations */
+@keyframes scanning {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes matrix-rain {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+@keyframes cyber-grid {
+  0% { opacity: 0.1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.1; }
+}
+
+@keyframes chart-hover-glow {
+  0% { filter: drop-shadow(0 0 0 rgba(0, 188, 212, 0)); }
+  100% { filter: drop-shadow(0 0 10px rgba(0, 188, 212, 0.5)); }
+}
+
+@keyframes data-point-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes chart-scale-in {
+  0% { transform: scale(0.95) rotateX(5deg); }
+  100% { transform: scale(1) rotateX(0deg); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Animation classes */
+.animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes chart-hover-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 188, 212, 0.3); }
+  50% { transform: scale(1.03); box-shadow: 0 0 30px rgba(0, 188, 212, 0.5); }
+}
+
+@keyframes floating-particles {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0.6; }
+  33% { transform: translateY(-10px) translateX(5px) scale(1.2); opacity: 1; }
+  66% { transform: translateY(5px) translateX(-3px) scale(0.8); opacity: 0.8; }
+  100% { transform: translateY(0) translateX(0) scale(1); opacity: 0.6; }
+}
+
+@keyframes perspective-float {
+  0% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px); }
+  25% { transform: perspective(1000px) rotateX(1deg) rotateY(1deg) translateZ(5px); }
+  50% { transform: perspective(1000px) rotateX(0deg) rotateY(2deg) translateZ(8px); }
+  75% { transform: perspective(1000px) rotateX(-1deg) rotateY(1deg) translateZ(5px); }
+  100% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px); }
+}
+
+/* Fix hover edge cutting and ensure proper boundaries */
+.react-grid-layout {
+  position: relative !important;
+}
+
+.react-grid-item {
+  transition: all 300ms ease;
+  will-change: transform;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(0, 188, 212, 0.1) !important;
+  border: 2px dashed rgba(0, 188, 212, 0.5) !important;
+  border-radius: 8px !important;
+}
+
+/* Ensure chart widgets don't get clipped during hover animations */
+.layout {
+  padding: 8px;
+  margin: 8px;
+}
+
+.layout .react-grid-item {
+  overflow: visible !important;
+}
+
+/* Additional animations for water system */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-20px) rotate(180deg);
+    opacity: 1;
+  }
+}
+
+/* Enhanced KPI card animations */
+@keyframes cardGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(8, 145, 178, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(8, 145, 178, 0.6);
+  }
+}
+
+/* Scanning line effect */
+@keyframes scanLine {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100vw);
+  }
+}
+
+/* Data stream effect */
+@keyframes dataStream {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+/* Enhanced button animations */
+@keyframes buttonPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(8, 145, 178, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(8, 145, 178, 0);
+  }
+}
+
+/* Matrix background enhancement */
+@keyframes matrixRain {
+  0% {
+    opacity: 0;
+    transform: translateY(-100vh);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh);
+  }
+}
+
+/* Drag and drop animations */
+@keyframes dragHover {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    box-shadow: 0 4px 20px rgba(8, 145, 178, 0.3);
+  }
+  50% {
+    transform: scale(1.02) rotate(0.5deg);
+    box-shadow: 0 8px 40px rgba(8, 145, 178, 0.5);
+  }
+}
+
+@keyframes dragActive {
+  0%, 100% {
+    transform: scale(0.95);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Grab cursor enhancement */
+.drag-handle {
+  background: linear-gradient(45deg, rgba(8, 145, 178, 0.2), rgba(34, 197, 94, 0.2));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(8, 145, 178, 0.3);
+  transition: all 0.3s ease;
+}
+
+.drag-handle:hover {
+  background: linear-gradient(45deg, rgba(8, 145, 178, 0.3), rgba(34, 197, 94, 0.3));
+  border-color: rgba(8, 145, 178, 0.5);
+  transform: scale(1.1);
+}
+
+/* Chart container enhancements */
+.chart-container {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(8, 145, 178, 0.1), transparent);
+  transition: left 0.6s ease;
+}
+
+.chart-container:hover::before {
+  left: 100%;
+}
+
+/* Text Shadow Utilities */
+.text-shadow-sm {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.text-shadow-lg {
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* 3D Perspective Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-gpu {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Grid Layout Enhancements */
+.react-grid-layout {
+  position: relative;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(135deg, #00bcd4, #0097a7);
+  border-radius: 4px 0;
+  cursor: se-resize;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 0.8;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(0, 188, 212, 0.2);
+  border: 2px dashed rgba(0, 188, 212, 0.6);
+  border-radius: 8px;
+  opacity: 0.8;
+  transition-duration: 100ms;
+  z-index: 2;
+  user-select: none;
+}
+
+:root {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(195, 100%, 50%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+  
+  /* Custom cyberpunk colors */
+  --cyber-blue: hsl(180, 100%, 50%);
+  --electric-blue: hsl(212, 100%, 50%);
+  --neon-orange: hsl(20, 100%, 50%);
+  --neon-amber: hsl(45, 100%, 50%);
+  --space-dark: hsl(240, 25%, 6%);
+  --dark-navy: hsl(240, 36%, 12%);
+  --neon-green: hsl(158, 100%, 50%);
+  --cyber-purple: hsl(270, 100%, 50%);
+  --cyber-red: hsl(0, 100%, 60%);
+  --cyber-pink: hsl(320, 100%, 60%);
+  --hologram-blue: hsl(195, 100%, 80%);
+  --matrix-green: hsl(120, 100%, 70%);
+}
+
+/* Light theme: popover/dropdown and accent so Select and other popovers are visible */
+:root.light {
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+}
+
+/* 3D Futuristic Hover Effects */
+/* Removed excessive glow-pulse animation */
+
+@keyframes holographic-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float-3d {
+  0%, 100% { 
+    transform: translateY(0) rotateX(0deg) rotateY(0deg);
+  }
+  50% { 
+    transform: translateY(-10px) rotateX(5deg) rotateY(2deg);
+  }
+}
+
+@keyframes energy-ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Clean Professional Chart Hover */
+.chart-3d-hover {
+  transition: all 0.3s ease-out;
+  position: relative;
+}
+
+/* React Grid Layout Styles */
+.react-grid-layout {
+  position: relative;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top;
+  border-radius: 8px;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNiIgaGVpZ2h0PSI2IiB2aWV3Qm94PSIwIDAgNiA2IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZG90cyBmaWxsPSIjODg4IiBkPSJtIDUuNSwxLjUgLTQsNCBMIDIuNSw0LjUgbCA0LC00IHoiLz4KPC9zdmc+Cg==');
+  background-position: bottom right;
+  padding: 0 3px 3px 0;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  box-sizing: border-box;
+  cursor: se-resize;
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 0.6;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(0, 188, 212, 0.2);
+  opacity: 0.2;
+  transition-duration: 100ms;
+  z-index: 2;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  border: 2px dashed #00bcd4;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-right: 2px solid rgba(0, 188, 212, 0.4);
+  border-bottom: 2px solid rgba(0, 188, 212, 0.4);
+}
+
+.chart-3d-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 25px rgba(0, 255, 255, 0.15),
+    0 4px 12px rgba(0, 255, 255, 0.1);
+  border-color: rgba(0, 255, 255, 0.5);
+}
+
+/* Matrix Rain Animation */
+@keyframes matrix-rain {
+  0% {
+    transform: translateY(-100vh);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+/* Enhanced Data Flow Animation */
+@keyframes data-flow {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-20px) scale(1.1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-40px) scale(1.2);
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(-20px) scale(1.1);
+    opacity: 0.7;
+  }
+}
+
+/* 3D Widget Grid Animation */
+@keyframes widget-appear {
+  0% {
+    transform: scale(0.8) translateZ(-20px) rotateX(20deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateZ(0) rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+/* Holographic UI Elements */
+.holographic {
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.1) 0%, 
+    rgba(138, 43, 226, 0.1) 50%, 
+    rgba(0, 255, 255, 0.1) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.holographic::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(0, 255, 255, 0.2), 
+    transparent);
+  animation: holographic-shimmer 3s infinite;
+  pointer-events: none;
+}
+
+/* Cyber Grid Background */
+.cyber-grid {
+  background-image: 
+    linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: grid-float 10s ease-in-out infinite;
+}
+
+@keyframes grid-float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(5px, 5px); }
+}
+
+.chart-3d-hover:hover::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(0, 255, 255, 0.2) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  z-index: -2;
+  animation: energy-ripple 1.5s infinite;
+}
+
+/* Enhanced KPI Card Hover */
+.kpi-card-3d {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform-style: preserve-3d;
+  perspective: 800px;
+}
+
+.kpi-card-3d:hover {
+  transform: 
+    scale(1.05) 
+    translateZ(15px) 
+    rotateX(3deg) 
+    rotateY(1deg);
+  box-shadow: 
+    0 15px 30px rgba(0, 255, 255, 0.25),
+    0 30px 60px rgba(0, 255, 255, 0.15),
+    0 0 40px rgba(0, 255, 255, 0.3),
+    inset 0 0 20px rgba(0, 255, 255, 0.1);
+  border-color: rgba(0, 255, 255, 0.6);
+  z-index: 40;
+}
+
+/* Network Monitoring Animations */
+@keyframes matrix-rain {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+@keyframes water-ripple {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1) rotate(180deg);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(2) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes water-wave {
+  0% {
+    transform: translateY(0px) scaleY(1);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(-10px) scaleY(1.1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(0px) scaleY(1);
+    opacity: 0.2;
+  }
+}
+
+@keyframes liquid-flow {
+  0% {
+    background-position: 0% 0%;
+  }
+  25% {
+    background-position: 100% 25%;
+  }
+  50% {
+    background-position: 50% 100%;
+  }
+  75% {
+    background-position: 25% 50%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+@keyframes water-current {
+  0% {
+    transform: translateX(-100%) scaleY(1);
+    opacity: 0.1;
+  }
+  25% {
+    transform: translateX(-25%) scaleY(1.2);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateX(25%) scaleY(0.8);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateX(75%) scaleY(1.1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateX(150%) scaleY(1);
+    opacity: 0.1;
+  }
+}
+
+@keyframes wave-motion {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+    border-radius: 50% 40% 60% 30%;
+  }
+  25% {
+    transform: translateY(-15px) rotate(90deg);
+    border-radius: 40% 60% 30% 50%;
+  }
+  50% {
+    transform: translateY(-5px) rotate(180deg);
+    border-radius: 60% 30% 50% 40%;
+  }
+  75% {
+    transform: translateY(-20px) rotate(270deg);
+    border-radius: 30% 50% 40% 60%;
+  }
+  100% {
+    transform: translateY(0px) rotate(360deg);
+    border-radius: 50% 40% 60% 30%;
+  }
+}
+
+@keyframes float-3d {
+  0% {
+    transform: perspective(1000px) rotateX(2deg) rotateY(-1deg) translateY(0px);
+  }
+  25% {
+    transform: perspective(1000px) rotateX(3deg) rotateY(0deg) translateY(-3px);
+  }
+  50% {
+    transform: perspective(1000px) rotateX(1deg) rotateY(1deg) translateY(-6px);
+  }
+  75% {
+    transform: perspective(1000px) rotateX(4deg) rotateY(-0.5deg) translateY(-3px);
+  }
+  100% {
+    transform: perspective(1000px) rotateX(2deg) rotateY(-1deg) translateY(0px);
+  }
+}
+
+@keyframes hologram-scan {
+  0% {
+    left: -100%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes geometric-float {
+  0% {
+    transform: perspective(800px) rotateX(1deg) rotateY(1deg) translateY(0px);
+  }
+  33% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translateY(-4px);
+  }
+  66% {
+    transform: perspective(800px) rotateX(-1deg) rotateY(2deg) translateY(-2px);
+  }
+  100% {
+    transform: perspective(800px) rotateX(1deg) rotateY(1deg) translateY(0px);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    background: radial-gradient(circle at 20% 80%, hsla(180, 100%, 50%, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, hsla(20, 100%, 50%, 0.1) 0%, transparent 50%);
+    background-color: hsl(240, 25%, 6%);
+    overflow: hidden;
+    font-family: 'Orbitron', monospace;
+  }
+}
+
+
+
+@layer components {
+  .glass-morphism {
+    background: rgba(0, 20, 40, 0.3);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 255, 255, 0.1);
+  }
+  
+  .holographic {
+    background: linear-gradient(135deg, 
+      rgba(0, 255, 255, 0.15) 0%, 
+      rgba(170, 0, 255, 0.15) 25%, 
+      rgba(0, 255, 136, 0.15) 50%, 
+      rgba(255, 170, 0, 0.15) 75%, 
+      rgba(255, 0, 170, 0.15) 100%);
+    backdrop-filter: blur(25px);
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    box-shadow: 
+      0 0 20px rgba(0, 255, 255, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .cyberpunk-card {
+    background: linear-gradient(145deg, 
+      rgba(0, 10, 30, 0.95) 0%, 
+      rgba(10, 0, 30, 0.95) 50%, 
+      rgba(0, 20, 20, 0.95) 100%);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    box-shadow: 
+      0 4px 15px rgba(0, 255, 255, 0.08),
+      0 0 0 1px rgba(0, 255, 255, 0.03);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .cyberpunk-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+      transparent, 
+      rgba(0, 255, 255, 0.05), 
+      transparent);
+    animation: scan-line 4s infinite;
+  }
+  
+  .cyberpunk-card {
+    background: linear-gradient(145deg, 
+      rgba(0, 10, 30, 0.95) 0%, 
+      rgba(10, 0, 30, 0.95) 50%, 
+      rgba(0, 20, 20, 0.95) 100%);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    box-shadow: 
+      0 4px 15px rgba(0, 255, 255, 0.08),
+      0 0 0 1px rgba(0, 255, 255, 0.03);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .cyberpunk-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+      transparent, 
+      rgba(0, 255, 255, 0.1), 
+      transparent);
+    animation: scan-line 3s infinite;
+  }
+  
+  .neo-border {
+    border: 2px solid transparent;
+    background: linear-gradient(145deg, rgba(0, 255, 255, 0.1), rgba(255, 0, 170, 0.1)) padding-box,
+                linear-gradient(145deg, rgba(0, 255, 255, 0.5), rgba(255, 0, 170, 0.5)) border-box;
+  }
+  
+  .text-glow {
+    text-shadow: 
+      0 0 5px currentColor, 
+      0 0 10px currentColor, 
+      0 0 15px currentColor,
+      0 0 20px currentColor;
+  }
+  
+  .text-matrix {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    text-shadow: 
+      0 0 3px hsl(120, 100%, 70%),
+      0 0 6px hsl(120, 100%, 70%),
+      0 0 9px hsl(120, 100%, 70%);
+  }
+  
+  .progress-ring {
+    transform: rotate(-90deg);
+  }
+  
+  .facility-marker {
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .facility-marker:hover {
+    transform: scale(1.5);
+    z-index: 10;
+  }
+  
+  .status-indicator {
+    border-radius: 50%;
+    animation: glow-pulse 2s ease-in-out infinite alternate;
+  }
+  
+  .data-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: hsl(180, 100%, 50%);
+    border-radius: 50%;
+    animation: data-flow 3s linear infinite;
+  }
+  
+  .metric-gauge {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .hologram-text {
+    background: linear-gradient(90deg, 
+      hsl(180, 100%, 50%), 
+      hsl(195, 100%, 80%), 
+      hsl(212, 100%, 50%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: hologram-shift 2s ease-in-out infinite alternate;
+  }
+  
+  .cyber-grid {
+    background-image: 
+      linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  .energy-bar {
+    background: linear-gradient(90deg, 
+      hsl(0, 100%, 60%) 0%, 
+      hsl(45, 100%, 50%) 50%, 
+      hsl(120, 100%, 50%) 100%);
+    box-shadow: 0 0 10px currentColor;
+  }
+}
+
+@layer utilities {
+  .animate-glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite alternate;
+  }
+  
+  .animate-data-flow {
+    animation: data-flow 3s linear infinite;
+  }
+  
+  .animate-rotate-3d {
+    animation: rotate-3d 10s linear infinite;
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  .hover\:scale-102:hover {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes glow-pulse {
+  0% { 
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+  }
+  100% { 
+    box-shadow: 0 0 40px rgba(0, 255, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.3);
+  }
+}
+
+@keyframes data-flow {
+  0% { 
+    transform: translateX(-100%); 
+    opacity: 0; 
+  }
+  50% { 
+    opacity: 1; 
+  }
+  100% { 
+    transform: translateX(100%); 
+    opacity: 0; 
+  }
+}
+
+@keyframes rotate-3d {
+  0% { 
+    transform: perspective(1000px) rotateY(0deg); 
+  }
+  100% { 
+    transform: perspective(1000px) rotateY(360deg); 
+  }
+}
+
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px); 
+  }
+  50% { 
+    transform: translateY(-10px); 
+  }
+}
+
+@keyframes scan-line {
+  0% { 
+    left: -100%; 
+  }
+  100% { 
+    left: 100%; 
+  }
+}
+
+@keyframes hologram-shift {
+  0% { 
+    filter: hue-rotate(0deg);
+  }
+  100% { 
+    filter: hue-rotate(90deg);
+  }
+}
+
+@keyframes cyber-breathe {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.8);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes matrix-rain {
+  0% { 
+    transform: translateY(-100px);
+    opacity: 0;
+  }
+  50% { 
+    opacity: 1;
+  }
+  100% { 
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+@keyframes energy-flow {
+  0% { 
+    background-position: 0% 50%;
+  }
+  50% { 
+    background-position: 100% 50%;
+  }
+  100% { 
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes circuit-pulse {
+  0% { 
+    stroke-dashoffset: 100;
+    opacity: 0.3;
+  }
+  50% { 
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% { 
+    stroke-dashoffset: -100;
+    opacity: 0.3;
+  }
+}
+
+/* Chart styling */
+.chart-container {
+  position: relative;
+  height: 100%;
+  min-height: 200px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(240, 3.7%, 15.9%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(180, 100%, 50%);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(212, 100%, 50%);
+}
+
+/* Enhanced 3D Animation System for Innovative Futuristic Design */
+@keyframes process-flow {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(50vh) rotate(180deg);
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-10vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes alert-pulse {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-20vh) scale(1.2);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-50vh) scale(0.8);
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(-80vh) scale(1.1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-100vh) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes chemical-flow {
+  0% {
+    transform: translateX(0) translateY(100vh) rotate(0deg) scale(0.8);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.7;
+    transform: translateX(20vw) translateY(75vh) rotate(90deg) scale(1);
+  }
+  35% {
+    transform: translateX(-10vw) translateY(50vh) rotate(180deg) scale(1.1);
+    opacity: 1;
+  }
+  65% {
+    transform: translateX(30vw) translateY(25vh) rotate(270deg) scale(0.9);
+    opacity: 0.8;
+  }
+  85% {
+    opacity: 0.5;
+    transform: translateX(10vw) translateY(5vh) rotate(315deg) scale(1.2);
+  }
+  100% {
+    transform: translateX(50vw) translateY(-20vh) rotate(360deg) scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes grid-flow {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 60px 60px;
+  }
+}
+
+@keyframes power-pulse {
+  0% {
+    opacity: 0.6;
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.05);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes warning-blink {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px #ffaa0060);
+  }
+  50% {
+    opacity: 0.4;
+    filter: drop-shadow(0 0 15px #ffaa0080);
+  }
+}
+
+@keyframes liquid-wave {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes holographic-scan {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes equipment-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px currentColor);
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 16px currentColor);
+    transform: scale(1.05);
+  }
+}
+
+/* Enhanced 3D Component Styles */
+.holographic-enhanced {
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.2) 0%, 
+    rgba(170, 0, 255, 0.2) 25%, 
+    rgba(0, 255, 136, 0.2) 50%, 
+    rgba(255, 170, 0, 0.2) 75%, 
+    rgba(255, 0, 170, 0.2) 100%);
+  backdrop-filter: blur(30px);
+  border: 2px solid rgba(0, 255, 255, 0.5);
+  box-shadow: 
+    0 0 30px rgba(0, 255, 255, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2),
+    0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.holographic-enhanced::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(0, 255, 255, 0.2), 
+    transparent);
+  animation: holographic-scan 4s infinite;
+}
+
+.cyberpunk-enhanced {
+  background: linear-gradient(145deg, 
+    rgba(0, 20, 40, 0.95) 0%, 
+    rgba(20, 0, 40, 0.95) 30%, 
+    rgba(0, 40, 30, 0.95) 70%, 
+    rgba(10, 10, 50, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  box-shadow: 
+    0 8px 32px rgba(0, 255, 255, 0.15),
+    0 0 0 1px rgba(0, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.scanning-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(0, 255, 255, 0.8), 
+    transparent);
+  animation: holographic-scan 2s infinite;
+}
+
+/* 3D Gauge Effects */
+.gauge-3d {
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+.gauge-3d::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, 
+    rgba(255, 255, 255, 0.2), 
+    transparent 50%);
+  z-index: -1;
+}
+
+/* Interactive Hover Effects */
+.interactive-3d {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.interactive-3d:hover {
+  transform: translateY(-2px) rotateX(5deg);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(0, 255, 255, 0.2);
+}
+
+/* Enhanced Glass Morphism */
+.glass-morphism-enhanced {
+  background: rgba(0, 20, 40, 0.4);
+  backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  box-shadow: 
+    0 12px 40px rgba(0, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Network Topology Enhancements */
+.network-node {
+  animation: pulse 2s infinite;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.network-connection {
+  animation: power-pulse 3s infinite;
+}
+
+/* Energy Visualization */
+.energy-hub {
+  animation: pulse 4s infinite;
+  filter: drop-shadow(0 0 20px #ffaa0060);
+}
+
+/* Maintenance Alert Styling */
+.alert-card-critical {
+  animation: warning-blink 2s infinite;
+  border-left: 4px solid #ff4444;
+}
+
+.alert-card-high {
+  border-left: 4px solid #ff8800;
+}
+
+.alert-card-medium {
+  border-left: 4px solid #ffaa00;
+}
+
+.alert-card-low {
+  border-left: 4px solid #ffff00;
+}
+
+/* Chemical Tank Animations */
+.tank-level {
+  animation: liquid-wave 3s ease-in-out infinite;
+}
+
+/* Energy Particle Animations for 3D Gauges */
+@keyframes energy-particle-0 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(40px, -40px) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(80px, -80px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-1 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(0, -60px) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(0, -120px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-2 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(-40px, -40px) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(-80px, -80px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-3 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(-60px, 0) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(-120px, 0) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-4 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(-40px, 40px) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(-80px, 80px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-5 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(0, 60px) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(0, 120px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-6 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(40px, 40px) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(80px, 80px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes energy-particle-7 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(60px, 0) rotate(180deg); opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate(120px, 0) rotate(360deg); opacity: 0; }
+}
+
+/* Enhanced Holographic Gauge Effects */
+.holographic-gauge {
+  position: relative;
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.1) 0%, 
+    rgba(170, 0, 255, 0.1) 25%, 
+    rgba(0, 255, 136, 0.1) 50%, 
+    rgba(255, 170, 0, 0.1) 75%, 
+    rgba(255, 0, 170, 0.1) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  box-shadow: 
+    0 0 20px rgba(0, 255, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.holographic-gauge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(0, 255, 255, 0.15), 
+    transparent);
+  animation: holographic-scan 3s infinite;
+}
+
+.gauge-glow {
+  filter: drop-shadow(0 0 10px currentColor);
+  animation: gauge-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes gauge-pulse {
+  0% {
+    filter: drop-shadow(0 0 8px currentColor);
+    transform: scale(1);
+  }
+  100% {
+    filter: drop-shadow(0 0 15px currentColor);
+    transform: scale(1.02);
+  }
+}
+
+/* 3D Power Hub Enhancements */
+.power-hub-3d {
+  transform-style: preserve-3d;
+  animation: hub-float 6s ease-in-out infinite;
+}
+
+@keyframes hub-float {
+  0%, 100% {
+    transform: perspective(1000px) rotateX(2deg) rotateY(-2deg) translateY(0px);
+  }
+  50% {
+    transform: perspective(1000px) rotateX(-2deg) rotateY(2deg) translateY(-5px);
+  }
+}
+
+/* Enhanced Connection Lines */
+.connection-line-3d {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    currentColor 20%, 
+    currentColor 80%, 
+    transparent 100%);
+  animation: connection-pulse 3s ease-in-out infinite;
+}
+
+@keyframes connection-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.1);
+  }
+}
+
+/* Status Indicator Enhancements */
+.status-indicator-3d {
+  background: radial-gradient(circle at 30% 30%, 
+    rgba(255, 255, 255, 0.8), 
+    currentColor 40%, 
+    transparent 70%);
+  animation: status-blink 2s ease-in-out infinite;
+}
+
+@keyframes status-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+/* Responsive 3D Effects */
+@media (max-width: 768px) {
+  .holographic-enhanced,
+  .cyberpunk-enhanced {
+    backdrop-filter: blur(15px);
+  }
+  
+  .interactive-3d:hover {
+    transform: translateY(-1px);
+  }
+  
+  .power-hub-3d {
+    animation-duration: 8s;
+  }
+}
+
+/* Enhanced Scrollbar styling */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgb(30 41 59 / 0.3);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105 / 0.8);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139 / 0.9);
+}
+
+.scrollbar-track-slate-800::-webkit-scrollbar-track {
+  background: rgb(30 41 59 / 0.5);
+}
+
+.scrollbar-thumb-slate-600::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105 / 0.7);
+}
+
+.scrollbar-thumb-slate-600::-webkit-scrollbar-thumb:hover {
+  background: rgb(71 85 105 / 0.9);
+}
+
+/* Text truncation helper */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Force red logout button visibility in all themes */
+.logout-button-red {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  background: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+}
+
+.logout-button-red:hover {
+  background-color: #b91c1c !important;
+  color: #ffffff !important;
+  border-color: #b91c1c !important;
+  background: #b91c1c !important;
+}
+
+/* Override any light theme button rules for logout button - MUST be more specific than line 177 */
+:root.light button.logout-button-red,
+:root.light .logout-button-red {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  background: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+}
+
+:root.light button.logout-button-red:hover,
+:root.light .logout-button-red:hover {
+  background-color: #b91c1c !important;
+  color: #ffffff !important;
+  border-color: #b91c1c !important;
+  background: #b91c1c !important;
+}
+
+/* Override the specific outline button rule for our logout button */
+:root.light button.logout-button-red[class*="outline"] {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  background: #dc2626 !important;
+}
+
+/* Force visibility for green buttons in light mode - More specific selectors */
+:root.light button[class*="bg-green-600"],
+:root.light button.bg-green-600,
+:root.light .bg-green-600 {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #16a34a !important;
+  background: #16a34a !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+}
+
+:root.light button[class*="bg-green-600"]:hover,
+:root.light button.bg-green-600:hover,
+:root.light .bg-green-600:hover {
+  background-color: #15803d !important;
+  color: #ffffff !important;
+  border-color: #15803d !important;
+  background: #15803d !important;
+}
+
+/* Override the problematic outline button rule specifically for green buttons */
+:root.light button[class*="bg-green-600"][class*="outline"] {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #16a34a !important;
+  background: #16a34a !important;
+}
+
+/* Force visibility for cyan buttons in light mode - More specific selectors */
+:root.light button[class*="bg-cyan-600"],
+:root.light button.bg-cyan-600,
+:root.light .bg-cyan-600 {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+  border-color: #0891b2 !important;
+  background: #0891b2 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+}
+
+:root.light button[class*="bg-cyan-600"]:hover,
+:root.light button.bg-cyan-600:hover,
+:root.light .bg-cyan-600:hover {
+  background-color: #0e7490 !important;
+  color: #ffffff !important;
+  border-color: #0e7490 !important;
+  background: #0e7490 !important;
+}
+
+/* Override the problematic outline button rule specifically for cyan buttons */
+:root.light button[class*="bg-cyan-600"][class*="outline"] {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+  border-color: #0891b2 !important;
+  background: #0891b2 !important;
+}
+
+/* Force visibility for slate buttons in light mode (syncing state) */
+:root.light button[class*="bg-slate-600"] {
+  background-color: #475569 !important;
+  color: #94a3b8 !important;
+  border-color: #475569 !important;
+  background: #475569 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+  cursor: not-allowed !important;
+}
+
+/* Fix card styling in light mode */
+:root.light .bg-slate-800\/30 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+:root.light .border-slate-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Fix inner card sections in light mode */
+:root.light .bg-slate-700\/50 {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+:root.light .border-cyan-500\/30 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Fix text colors in light mode cards */
+:root.light .text-white {
+  color: #0f172a !important;
+}
+
+:root.light .text-slate-300 {
+  color: #475569 !important;
+}
+
+:root.light .text-cyan-400 {
+  color: #2563eb !important;
+}
+
+/* Fix login modal styling in light mode */
+:root.light .bg-slate-800\/95 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+}
+
+:root.light .bg-slate-700\/50 {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+:root.light .border-slate-600 {
+  border-color: #cbd5e1 !important;
+}
+
+:root.light .text-slate-400 {
+  color: #64748b !important;
+}
+
+:root.light .text-slate-300 {
+  color: #475569 !important;
+}
+
+/* Fix login modal close button */
+:root.light .hover\:bg-slate-700:hover {
+  background-color: #f1f5f9 !important;
+}
+
+:root.light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+/* Fix login modal input focus states */
+:root.light .focus\:border-cyan-500:focus {
+  border-color: #2563eb !important;
+}
+
+:root.light .focus\:ring-cyan-500\/20:focus {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+}
+
+/* Fix login modal quick login section */
+:root.light .border-slate-600 {
+  border-color: #cbd5e1 !important;
+}
+
+:root.light .bg-slate-800 {
+  background-color: #ffffff !important;
+}
+
+/* Fix login modal demo credentials section */
+:root.light .bg-slate-700\/30 {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+:root.light .border-slate-600\/50 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Fix login modal quick login buttons */
+:root.light .hover\:bg-cyan-500\/10:hover {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+:root.light .hover\:bg-blue-500\/10:hover {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+:root.light .hover\:bg-green-500\/10:hover {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+}
+
+:root.light .hover\:border-cyan-500:hover {
+  border-color: #2563eb !important;
+}
+
+:root.light .hover\:border-blue-500:hover {
+  border-color: #2563eb !important;
+}
+
+:root.light .hover\:border-green-500:hover {
+  border-color: #16a34a !important;
+}
+
+/* Fix login modal button text visibility in light mode */
+:root.light .\!text-cyan-400 {
+  color: #2563eb !important;
+}
+
+:root.light .\!text-blue-400 {
+  color: #2563eb !important;
+}
+
+:root.light .\!text-green-400 {
+  color: #16a34a !important;
+}
+
+/* Fix login modal button borders in light mode */
+:root.light .\!border-cyan-500\/30 {
+  border-color: #2563eb !important;
+}
+
+:root.light .\!border-blue-500\/30 {
+  border-color: #2563eb !important;
+}
+
+:root.light .\!border-green-500\/30 {
+  border-color: #16a34a !important;
+}
+
+/* Fix login modal input placeholder text */
+:root.light input::placeholder {
+  color: #64748b !important;
+}
+
+/* Fix login modal input text color */
+:root.light input[type="text"],
+:root.light input[type="password"] {
+  color: #0f172a !important;
+}
+
+/* Fix login modal icon colors */
+:root.light .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Fix login modal demo credentials text colors */
+:root.light .text-cyan-400 {
+  color: #2563eb !important;
+}
+
+:root.light .text-blue-400 {
+  color: #2563eb !important;
+}
+
+:root.light .text-green-400 {
+  color: #16a34a !important;
+}
+
+:root.light .text-amber-400 {
+  color: #f59e0b !important;
+}
+
+/* Fix login modal button backgrounds for better visibility */
+:root.light button[class*="outline"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+:root.light button[class*="outline"]:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Fix quick login buttons specifically */
+:root.light button[class*="!border-cyan-500"] {
+  border-color: #0891b2 !important;
+  color: #0891b2 !important;
+  background-color: #ffffff !important;
+}
+
+:root.light button[class*="!border-blue-500"] {
+  border-color: #2563eb !important;
+  color: #2563eb !important;
+  background-color: #ffffff !important;
+}
+
+:root.light button[class*="!border-green-500"] {
+  border-color: #16a34a !important;
+  color: #16a34a !important;
+  background-color: #ffffff !important;
+}
+
+/* Fix quick login button hover states */
+:root.light button[class*="!border-cyan-500"]:hover {
+  background-color: rgba(8, 145, 178, 0.1) !important;
+  border-color: #0891b2 !important;
+  color: #0891b2 !important;
+}
+
+:root.light button[class*="!border-blue-500"]:hover {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+  border-color: #2563eb !important;
+  color: #2563eb !important;
+}
+
+:root.light button[class*="!border-green-500"]:hover {
+  background-color: rgba(22, 163, 74, 0.1) !important;
+  border-color: #16a34a !important;
+  color: #16a34a !important;
+}
+
+/* More specific overrides for quick login buttons */
+:root.light button[class*="!text-cyan-400"] {
+  color: #0891b2 !important;
+  background-color: #ffffff !important;
+  border-color: #0891b2 !important;
+}
+
+:root.light button[class*="!text-blue-400"] {
+  color: #2563eb !important;
+  background-color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+:root.light button[class*="!text-green-400"] {
+  color: #16a34a !important;
+  background-color: #ffffff !important;
+  border-color: #16a34a !important;
+}
+
+/* Force visibility for all outline buttons in login modal */
+:root.light .grid.grid-cols-3 button {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+:root.light .grid.grid-cols-3 button[class*="cyan"] {
+  border-color: #0891b2 !important;
+  color: #0891b2 !important;
+}
+
+:root.light .grid.grid-cols-3 button[class*="blue"] {
+  border-color: #2563eb !important;
+  color: #2563eb !important;
+}
+
+:root.light .grid.grid-cols-3 button[class*="green"] {
+  border-color: #16a34a !important;
+  color: #16a34a !important;
+}
+
+/* Fix Send Test Email button visibility in dark mode */
+:root:not(.light) .\!bg-cyan-600 {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+  border-color: #0891b2 !important;
+}
+
+:root:not(.light) .\!bg-cyan-600:hover {
+  background-color: #0e7490 !important;
+  color: #ffffff !important;
+  border-color: #0e7490 !important;
+}
+
+:root:not(.light) .\!bg-cyan-600:disabled {
+  background-color: #475569 !important;
+  color: #94a3b8 !important;
+  border-color: #475569 !important;
+}
+
+/* Alternative selector for Send Test Email button */
+:root:not(.light) button[class*="!bg-cyan-600"] {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+  border-color: #0891b2 !important;
+}
+
+:root:not(.light) button[class*="!bg-cyan-600"]:hover {
+  background-color: #0e7490 !important;
+  color: #ffffff !important;
+  border-color: #0e7490 !important;
+}
+
+:root:not(.light) button[class*="!bg-cyan-600"]:disabled {
+  background-color: #475569 !important;
+  color: #94a3b8 !important;
+  border-color: #475569 !important;
+}
+
+/* Fix Send Test Email button visibility in light mode */
+:root.light .\!bg-cyan-600 {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+  border-color: #0891b2 !important;
+}
+
+:root.light .\!bg-cyan-600:hover {
+  background-color: #0e7490 !important;
+  color: #ffffff !important;
+  border-color: #0e7490 !important;
+}
+
+:root.light .\!bg-cyan-600:disabled {
+  background-color: #64748b !important;
+  color: #cbd5e1 !important;
+  border-color: #64748b !important;
+}
+
+/* Alternative selector for Send Test Email button in light mode */
+:root.light button[class*="!bg-cyan-600"] {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+  border-color: #0891b2 !important;
+}
+
+:root.light button[class*="!bg-cyan-600"]:hover {
+  background-color: #0e7490 !important;
+  color: #ffffff !important;
+  border-color: #0e7490 !important;
+}
+
+:root.light button[class*="!bg-cyan-600"]:disabled {
+  background-color: #64748b !important;
+  color: #cbd5e1 !important;
+  border-color: #64748b !important;
+}
