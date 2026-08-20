@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import text
 from database import postgres_engine, PostgresSessionLocal
 from services.scale_service import calculate_deltas, get_attr_safe
+from services import baseline_guard  # A7: unmapped-tag guard for baselines
 from models.process_order_pg import ProcessOrderPG
 
 log = logging.getLogger("shift_live_update")
@@ -125,6 +126,7 @@ def update_live_shift_production():
             return
         
         log.info(f"🔄 Processing {len(orders)} InProgress order(s) for live shift updates")
+        updated_count = 0
         
         for order in orders:
             try:
@@ -153,16 +155,44 @@ def update_live_shift_production():
                     continue
 
                 # ✅ CRITICAL: Normalize like get_current_production - flat {tag: float}, fallback to baseline_{tag}
+                # ✅ A7: the fallback used to be get_attr_safe(..., 0.0), which returns
+                # 0.0 for a tag that has no baseline column at all. This function writes
+                # weight_shift_a/b/c, the numbers MILLING confirmations are built from,
+                # so a zero baseline here reports the scale's lifetime counter as this
+                # shift's production. Skip the order instead and tell the operator.
                 baselines_flat = {}
-                for tag in equipment:
-                    if tag in raw_baseline:
-                        val = raw_baseline[tag]
-                        if isinstance(val, dict):
-                            baselines_flat[tag] = float(val.get("current", 0.0) or 0.0)
+                try:
+                    for tag in equipment:
+                        if tag in raw_baseline:
+                            val = raw_baseline[tag]
+                            if isinstance(val, dict):
+                                baselines_flat[tag] = float(val.get("current", 0.0) or 0.0)
+                            else:
+                                baselines_flat[tag] = float(val or 0.0)
                         else:
-                            baselines_flat[tag] = float(val or 0.0)
-                    else:
-                        baselines_flat[tag] = float(get_attr_safe(order, f"baseline_{tag.lower()}", 0.0) or 0.0)
+                            baselines_flat[tag] = baseline_guard.read_baseline_column(
+                                order, tag, po_number=order.order_id,
+                                reason=(
+                                    f"scale tag '{tag}' is not in this shift's captured "
+                                    f"baselines ({baseline_field}) and has no baseline "
+                                    f"column — the snapshot was taken before this tag "
+                                    f"joined the mapping"
+                                ),
+                            )
+                except baseline_guard.UnmappedTagError as exc:
+                    baseline_guard.report_unmapped_tag(
+                        exc,
+                        source="shift_live_update",
+                        extra={
+                            "equipment": list(equipment),
+                            "version": order.version,
+                            "material": order.material,
+                            "order_type": order_type,
+                            "shift": shift,
+                            "note": "weight_shift_%s not updated" % shift.lower(),
+                        },
+                    )
+                    continue
 
                 # ✅ USE SAME calculate_deltas() as auto-validator with NORMALIZED baselines
                 deltas = calculate_deltas(equipment, baselines_flat, order=order, db=db)
@@ -253,13 +283,19 @@ def update_live_shift_production():
                 
                 tags_str = ", ".join([f"{t}={per_tag_delta.get(t.lower(), 0):.2f}" for t in equipment])
                 log.info(f"✅ Order {order.order_id} Shift {shift}: {live_weight:.2f} {unit} ({tags_str})")
+                updated_count += 1
             
             except Exception as e:
                 log.error(f"Failed to update shift weight for order {order.order_id}: {e}")
         
         # Commit all updates
         db.commit()
-        log.info(f"✅ LIVE shift weights updated: {len(orders)} order(s)")
+        skipped = len(orders) - updated_count
+        log.info(
+            "✅ LIVE shift weights updated: %d of %d order(s)%s",
+            updated_count, len(orders),
+            f" ({skipped} skipped)" if skipped else "",
+        )
     
     except Exception as e:
         log.exception("❌ Live shift update failed: %s", e)

@@ -5605,6 +5605,7 @@ from services.scale_service import (
 )
 from services.sap_confirmation import SAPConfirmationService
 from services.error_logger import log_order_error
+from services import baseline_guard  # A7: unmapped-tag guard for baselines
 from services.auth_service import optional_auth
 from services.system_logger import system_logger
 from services.scale_lock_service import (
@@ -6713,26 +6714,86 @@ def _get_baseline_for_tag(order, tag: str) -> float:
     Helper function to get baseline value for a scale tag.
     For PL/SL scales (PACKING), baseline is stored in scale1_qty/scale2_qty/scale3_qty.
     For WG/DM scales (MILLING), baseline is stored in baseline_{tag} attributes.
+
+    ✅ A7: raises baseline_guard.UnmappedTagError when the tag resolves to
+    neither a scale slot nor a baseline_* column. It used to return 0.0 there,
+    which is indistinguishable from "not captured yet" and makes the delta the
+    scale's entire lifetime counter. See services/baseline_guard.py.
     """
     tag_upper = tag.upper()
-    
+    po_number = get_attr_safe(order, "order_id", None)
+
     # ✅ ONLY use scale1_qty/scale2_qty/scale3_qty for PL/SL palletizer scales
     # WG/DM scales ALWAYS use baseline_{tag} attributes
     if tag_upper.startswith("PL") or tag_upper.startswith("SL"):
         scale1_tag = str(get_attr_safe(order, 'scale1', '') or '').upper()
         scale2_tag = str(get_attr_safe(order, 'scale2', '') or '').upper()
         scale3_tag = str(get_attr_safe(order, 'scale3', '') or '').upper()
-        
+
         if tag_upper == scale1_tag:
             return float(get_attr_safe(order, 'scale1_qty', 0.0) or 0.0)
         elif tag_upper == scale2_tag:
             return float(get_attr_safe(order, 'scale2_qty', 0.0) or 0.0)
         elif tag_upper == scale3_tag:
             return float(get_attr_safe(order, 'scale3_qty', 0.0) or 0.0)
-    
+
+        # ✅ A7: the packing tags are PL60x_TOT / SL60x_TOT but the columns are
+        # baseline_sl60x_counter, so a packing tag has no column of its own. If
+        # it is not one of this order's scale slots there is nowhere to read a
+        # baseline from — do not fall through to a silent 0.0.
+        if not baseline_guard.has_baseline_column(tag_upper):
+            raise baseline_guard.UnmappedTagError(
+                tag_upper,
+                po_number=po_number,
+                reason=(
+                    f"packing tag '{tag_upper}' is not assigned to a scale slot on "
+                    f"this order (scale1={scale1_tag or 'unset'}, "
+                    f"scale2={scale2_tag or 'unset'}, scale3={scale3_tag or 'unset'}) "
+                    f"and has no baseline column"
+                ),
+            )
+
     # WG/DM scales use baseline_{tag} attributes
-    baseline_attr = f"baseline_{tag.lower()}"
-    return float(get_attr_safe(order, baseline_attr, 0.0) or 0.0)
+    return baseline_guard.read_baseline_column(order, tag, po_number=po_number)
+
+
+def _halt_order_on_config_error(db, order, po_number: str, info: Dict) -> None:
+    """
+    ✅ A7: stop an order whose scale mapping names a tag with no baseline.
+
+    Every number derived from that tag is wrong, so pausing is safer than
+    continuing to confirm. Puts the order back to Pending — the existing paused
+    state the worker already exits on — and marks the validation state as
+    errored so the UI stops showing it as running. The operator fixes the
+    mapping and restarts.
+
+    The reason is already in `error_log` via baseline_guard.report_unmapped_tag.
+    """
+    message = info.get("error") or "Order halted: scale tag has no baseline"
+    print(f"⛔ [Worker-{po_number}] HALTING order — {message}")
+
+    try:
+        set_attr_safe(order, "status", "Pending")
+        db.add(order)
+        db.commit()
+        print(f"⛔ [Worker-{po_number}] Order set to Pending pending a mapping fix")
+    except Exception as exc:
+        print(f"⚠️ [Worker-{po_number}] Could not set order to Pending: {exc}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    try:
+        set_order_validation_state(po_number, {
+            "isrunning": False,
+            "status": "error",
+            "error": message,
+            "unmapped_tag": info.get("unmapped_tag"),
+        })
+    except Exception as exc:
+        print(f"⚠️ [Worker-{po_number}] Could not update validation state: {exc}")
+
 
 def get_current_production(order, classification: Dict, db=None, force_fresh_baseline: bool = False, use_shift_baselines: bool = True) -> Dict[str, Any]:
     """
@@ -6765,43 +6826,68 @@ def get_current_production(order, classification: Dict, db=None, force_fresh_bas
     # previous production when order is restarted
     # ================================================================
     baselines_main = {}
-    
-    if use_shift_baselines:
-        # ✅ Use shift-specific baselines (for worker - accurate after restart)
-        current_shift = get_attr_safe(order, "current_shift", "A")
-        shift_baseline_field = f"baseline_shift_{current_shift.lower()}_start"
-        shift_baselines = get_attr_safe(order, shift_baseline_field, None)
-        
-        if shift_baselines and isinstance(shift_baselines, dict):
-            # ✅ CRITICAL FIX: Handle both simple dict format {'TAG': float} and nested dict format {'TAG': {'current': float}}
-            # Extract current values if nested dict format is detected
-            baselines_main = {}
-            for tag in main_equipment:
-                if tag in shift_baselines:
-                    value = shift_baselines[tag]
-                    # Handle nested dict format {'current': val, 'delta': val}
-                    if isinstance(value, dict):
-                        current_val = float(value.get('current', 0.0) or 0.0)
+
+    # ✅ A7: any tag with no baseline would silently read 0.0 and turn the delta
+    # into the scale's lifetime counter. _get_baseline_for_tag now raises
+    # instead; convert that into an error result the callers can act on.
+    try:
+        if use_shift_baselines:
+            # ✅ Use shift-specific baselines (for worker - accurate after restart)
+            current_shift = get_attr_safe(order, "current_shift", "A")
+            shift_baseline_field = f"baseline_shift_{current_shift.lower()}_start"
+            shift_baselines = get_attr_safe(order, shift_baseline_field, None)
+
+            if shift_baselines and isinstance(shift_baselines, dict):
+                # ✅ CRITICAL FIX: Handle both simple dict format {'TAG': float} and nested dict format {'TAG': {'current': float}}
+                # Extract current values if nested dict format is detected
+                baselines_main = {}
+                for tag in main_equipment:
+                    if tag in shift_baselines:
+                        value = shift_baselines[tag]
+                        # Handle nested dict format {'current': val, 'delta': val}
+                        if isinstance(value, dict):
+                            current_val = float(value.get('current', 0.0) or 0.0)
+                        else:
+                            current_val = float(value or 0.0)
+                        baselines_main[tag] = current_val
                     else:
-                        current_val = float(value or 0.0)
-                    baselines_main[tag] = current_val
-                else:
-                    # Tag not in shift baselines, use global baseline as fallback
+                        # Tag not in shift baselines, use global baseline as fallback
+                        # ✅ FIX: For PL/SL scales, baseline is stored in scale1_qty/scale2_qty/scale3_qty
+                        baselines_main[tag] = _get_baseline_for_tag(order, tag)
+                print(f"✅ Using SHIFT baselines for production calculation: {baselines_main}")
+            else:
+                # Fallback to global baselines if shift baselines not found
+                print(f"⚠️ Shift baselines not found, falling back to global baselines")
+                for tag in main_equipment:
                     # ✅ FIX: For PL/SL scales, baseline is stored in scale1_qty/scale2_qty/scale3_qty
                     baselines_main[tag] = _get_baseline_for_tag(order, tag)
-            print(f"✅ Using SHIFT baselines for production calculation: {baselines_main}")
         else:
-            # Fallback to global baselines if shift baselines not found
-            print(f"⚠️ Shift baselines not found, falling back to global baselines")
+            # Use global baselines (for manual checks or initial setup)
             for tag in main_equipment:
                 # ✅ FIX: For PL/SL scales, baseline is stored in scale1_qty/scale2_qty/scale3_qty
                 baselines_main[tag] = _get_baseline_for_tag(order, tag)
-    else:
-        # Use global baselines (for manual checks or initial setup)
-        for tag in main_equipment:
-            # ✅ FIX: For PL/SL scales, baseline is stored in scale1_qty/scale2_qty/scale3_qty
-            baselines_main[tag] = _get_baseline_for_tag(order, tag)
-    
+    except baseline_guard.UnmappedTagError as exc:
+        baseline_guard.report_unmapped_tag(
+            exc,
+            source="get_current_production",
+            extra={
+                "equipment": list(main_equipment),
+                "order_type": order_type,
+                "version": get_attr_safe(order, "version", None),
+                "material": get_attr_safe(order, "material", None),
+            },
+        )
+        return {
+            "error": exc.operator_message(),
+            "config_error": True,
+            "unmapped_tag": exc.tag,
+            "total": 0.0,
+            "deltas": {},
+            "baselines": {},
+            "per_scale": {},
+            "byproduct_baselines": {},
+        }
+
     # ================================================================
     # Calculate deltas from baselines
     # ================================================================
@@ -6870,14 +6956,37 @@ def get_current_production(order, classification: Dict, db=None, force_fresh_bas
     # ================================================================
     byp_tags = [get_attr_safe(order, "scale1"), get_attr_safe(order, "scale2"), get_attr_safe(order, "scale3")]
     byp_tags = [t for t in byp_tags if t]
-    byproduct_baselines = {tag: float(get_attr_safe(order, f"baseline_{tag.lower()}", 0.0) or 0.0) for tag in byp_tags}
-    
+
+    # ✅ A7: byproducts do not drive confirmed_qty, so an unmapped byproduct tag
+    # is reported but does not halt the order. It is left out of the dict rather
+    # than defaulted to 0.0, so nothing downstream can mistake a missing
+    # baseline for a captured one.
+    byproduct_baselines = {}
+    byproduct_unmapped = []
+    for tag in byp_tags:
+        try:
+            byproduct_baselines[tag] = baseline_guard.read_baseline_column(
+                order, tag, po_number=get_attr_safe(order, "order_id", None)
+            )
+        except baseline_guard.UnmappedTagError as exc:
+            byproduct_unmapped.append(exc.tag)
+            baseline_guard.report_unmapped_tag(
+                exc,
+                source="get_current_production:byproduct",
+                extra={
+                    "byproduct_scales": list(byp_tags),
+                    "version": get_attr_safe(order, "version", None),
+                    "note": "byproduct only - does not affect confirmed_qty",
+                },
+            )
+
     return {
         "total": total_main,
         "deltas": deltas_main,
         "baselines": baselines_main,
         "per_scale": per_tag_delta_main,
         "byproduct_baselines": byproduct_baselines,
+        "byproduct_unmapped": byproduct_unmapped,
     }
 
 def check_order_completion(order, classification: Dict) -> Dict[str, Any]:
@@ -6898,6 +7007,15 @@ def check_order_completion(order, classification: Dict) -> Dict[str, Any]:
         new_production = 0.0
     else:
         prod_info = get_current_production(order, classification)
+        # ✅ A7: an unmapped scale tag means every number below is wrong.
+        # Propagate rather than reading total 0.0 as "produced nothing".
+        if prod_info.get("config_error"):
+            return {
+                "is_complete": False,
+                "error": prod_info.get("error"),
+                "config_error": True,
+                "unmapped_tag": prod_info.get("unmapped_tag"),
+            }
         new_production = float(prod_info.get("total", 0.0) or 0.0)
     # new_production = float(prod_info.get("total", 0.0) or 0.0) if not prod_info.get("error") else 0.0
     
@@ -9664,6 +9782,11 @@ def auto_validation_worker(po_number: str, classification: Dict):
                         # ✅ CRITICAL: Force refresh to ensure we get the latest baseline after manual confirmation
                         db.refresh(current_order)
                         current_prod_info = get_current_production(current_order, classification, db=db, use_shift_baselines=True)
+                        # ✅ A7: halt instead of treating an unmapped tag as zero production.
+                        # Without this the worker would loop here once a second forever.
+                        if current_prod_info.get("config_error"):
+                            _halt_order_on_config_error(db, current_order, po_number, current_prod_info)
+                            break
                         current_delta = float(current_prod_info.get("total", 0.0) or 0.0)
                         
                         # ✅ C31-T26 FIX: DISABLED worker boundary detection
@@ -10007,7 +10130,13 @@ def auto_validation_worker(po_number: str, classification: Dict):
                     # ✅ CRITICAL FIX (Jan 23, 2026): Check completion BEFORE updating UI status
                     # This prevents progress from continuing to increase after target is reached for packing orders
                     completion = check_order_completion(current_order, classification)
-                    
+
+                    # ✅ A7: same guard on the completion path — an unmapped tag
+                    # makes the completion check meaningless, so stop the order.
+                    if completion.get("config_error"):
+                        _halt_order_on_config_error(db, current_order, po_number, completion)
+                        break
+
                     # ✅ CRITICAL FIX: For packing orders, ensure display_total is capped at target_qty
                     # Once target is reached, display_total should never increase further
                     if order_type == "PACKING" and completion.get("is_complete", False):
@@ -11774,8 +11903,27 @@ def get_progress(po_number: str):
                 
                 for i, tag in enumerate(equipment, 1):
                     # ✅ FIX: For PL/SL scales, baseline is stored in scale1_qty/scale2_qty/scale3_qty
-                    baseline = _get_baseline_for_tag(order, tag)
-                    
+                    try:
+                        baseline = _get_baseline_for_tag(order, tag)
+                    except baseline_guard.UnmappedTagError as exc:
+                        # ✅ A7: refuse to display a delta computed off a missing
+                        # baseline — it would be the scale's lifetime counter.
+                        baseline_guard.report_unmapped_tag(
+                            exc,
+                            source="get_progress",
+                            extra={
+                                "equipment": list(equipment),
+                                "version": get_attr_safe(order, "version", None),
+                                "material": get_attr_safe(order, "material", None),
+                            },
+                        )
+                        return jsonify({
+                            "po_number": po_number,
+                            "error": exc.operator_message(),
+                            "config_error": True,
+                            "unmapped_tag": exc.tag,
+                        }), 400
+
                     # Get current SCADA reading
                     reading_data = current_readings.get(tag, {})
                     if isinstance(reading_data, dict):
