@@ -5,33 +5,48 @@ Removing hardcoded plant configuration from Hercules SFMS. Two parallel workstre
 | | |
 |---|---|
 | **Repo** | `Imroz-hercules/SAP_Dynamic` |
-| **Base** | `e6cf018` + commit 0 |
+| **Base** | `e6cf018` + commit 0 (PR #1) |
 | **Branches** | `feat/dynamic-order-routing` · `feat/dynamic-plant-config` |
 | **Contracts** | [`backend/CONTRACTS.md`](backend/CONTRACTS.md) |
+| **Line numbers** | Verified against `e6cf018` + commit 0. Re-check after any rebase. |
 
 ---
 
-## 0. Where this starts
+## 1. What "dynamic" means here
 
-Most of the dynamic infrastructure already exists. `shift_master`, `milling_version_mappings`, `palletizer_mapping` and `system_settings` are live tables with working CRUD endpoints. What was never finished is deleting the hardcoded copies they were meant to replace — and in two places the hardcoded copy is the one running in production.
+The goal is that a plant engineer can change how the system behaves **without a developer and without a redeploy**. Every item below is a capability, not a refactor. The right question for each is *"who can change this today, and where?"*
 
-So this is a completion job, not a rewrite. Every value below moves from a Python literal into a table or an environment variable, with an endpoint and a screen behind it.
+| # | Capability | Screen | Today |
+|---|---|---|---|
+| 1 | Shift times, count and codes per plant/department | Admin → Shifts | ✅ **Working** — full CRUD against `/api/shifts` |
+| 2 | Which scales a milling version reads, and its formula | Material Map | ⚠️ **Editable, but ignored** by one live consumer |
+| 3 | Which line a packing version uses, bags per pallet | Palletizer Mapping | ⚠️ **Editable, but** the line→tag map is still in code |
+| 4 | Demo vs production mode, emulator speed and scales | Admin → Demo | ✅ **Working** |
+| 5 | Sync schedule (raw data, KPI, process orders) | Admin → System | ✅ **Working** |
+| 6 | Which material prefixes and plants mean MILLING vs PACKING | — | ❌ **Not possible** — hardcoded |
+| 7 | Which SCADA tags exist, their reading type and rollover | — | ❌ **Not possible** — hardcoded in 6 places |
+| 8 | KPI ceilings and the mill nameplate rate | — | ❌ **Not possible** — hardcoded |
+| 9 | Connection details, SAP endpoint, credentials | `backend/.env` | ⚠️ **Partly** — env works, literals remain as fallbacks |
 
-**Everything needed is in the repo.** Seed data, formula definitions and a real SCADA sample are all committed — see [§6 Reference data](#6-reference-data-in-the-repo). Nothing has to be requested from outside the team.
+**So the work is narrower than it first looks.** Rows 1, 4 and 5 are already done — don't rebuild them. Rows 2, 3 and 9 are half-done. Rows 6, 7 and 8 are the genuinely new capability.
 
-### Already done — not in scope below
+### What this cannot deliver
 
-**`e6cf018` (Imroz, 20 Aug)** wired `python-dotenv` into `app.py` and `database.py`, moved the DB URLs, SAP host/user/password/client and the JWT secret to environment variables, added `backend/.env.example`, gitignored `.env`, made the Vite dev-proxy target configurable, and added two reference files: `setup_sap_postgres.sql` (full 22-table schema) and `ENDPOINT_TO_DB_MAPPING.md`.
+Say this plainly so nobody promises it to the plant:
 
-**`2ccc67f` — commit 0** reserves every shared surface so the two branches never touch the same file. Details in [§2](#2-commit-0--done-2ccc67f).
+**Adding a brand-new WG or DM tag will still need a schema change.** Baselines live in 18 fixed columns on `process_orders` (`baseline_wg101` … `baseline_dm203`), and the lookup is `getattr(order, f"baseline_{tag.lower()}", 0.0)` via `get_attr_safe`, which **swallows the miss and returns `0.0`** (`order_validation.py:6711`, `:5874`). A tag with no matching column silently gets a zero baseline, so `delta = current − 0` = the entire lifetime counter, and that number goes to SAP.
+
+So `scada_tags` makes the **existing** tag set configurable — enable/disable, category, reading type, rollover, source column, emulator seed. It does not make the tag set open-ended. Task **A7** adds the guard that turns that silent failure into a loud one.
+
+PL/SL tags are different: their baselines come from `scale1_qty` / `scale2_qty` / `scale3_qty`, so packing is limited to three concurrent tags per order rather than by column count.
 
 ---
 
-## 1. Ground rules
+## 2. Ground rules
 
 ### File ownership is exclusive
 
-Each file belongs to exactly one workstream for the duration. If you need a change in a file you don't own, ask rather than edit — that is the one thing that costs a day.
+Each file belongs to exactly one workstream for the duration. If you need a change in a file you don't own, ask rather than edit.
 
 | Workstream A only | Workstream B only |
 |---|---|
@@ -41,14 +56,17 @@ Each file belongs to exactly one workstream for the duration. If you need a chan
 | `backend/routes/order_validation.py` | `backend/routes/kpi_config_routes.py` *(new)* |
 | `backend/routes/milling_mapping_routes.py` | `backend/services/scale_service.py` |
 | `backend/routes/error_log_routes.py` | `backend/services/embedded_emulator.py` |
-| `backend/services/shift_live_update.py` | `backend/services/auto_validator.py` *(delete)* |
-| `backend/services/process_order_pull.py` | `backend/routes/scada_routes.py` |
-| `backend/services/scale_lock_service.py` | `backend/routes/emulator_routes.py` |
-| `backend/services/order_validation_service.py` *(delete)* | `backend/routes/kpi_routes.py` |
-| `backend/models/milling_version_mapping.py` | `backend/services/kpi_store_flat.py` |
-| `backend/models/palletizer_mapping.py` | `backend/services/kpi_incremental.py` |
-| `Frontend/…/pages/hercules-sfms/MaterialMap.tsx` | `backend/services/kpi_shift_auto_sync.py` |
-| `Frontend/…/pages/hercules-sfms/PalletizerMapping.tsx` | `backend/routes/sap_sync.py` |
+| `backend/routes/material_routes.py` | `backend/services/scada_persist.py` |
+| `backend/services/shift_live_update.py` | `backend/services/create_scada_table.py` |
+| `backend/services/process_order_pull.py` | `backend/services/auto_validator.py` *(delete)* |
+| `backend/services/scale_lock_service.py` | `backend/models/create_pg_schema.py` *(delete — dead dup)* |
+| `backend/services/order_validation_service.py` *(delete)* | `backend/routes/scada_routes.py` |
+| `backend/models/milling_version_mapping.py` | `backend/routes/emulator_routes.py` |
+| `backend/models/palletizer_mapping.py` | `backend/routes/kpi_routes.py` |
+| `Frontend/…/pages/hercules-sfms/MaterialMap.tsx` | `backend/services/kpi_store_flat.py` |
+| `Frontend/…/pages/hercules-sfms/PalletizerMapping.tsx` | `backend/services/kpi_incremental.py` |
+| `Frontend/…/components/MaterialMappingForm.tsx` | `backend/services/kpi_shift_auto_sync.py` |
+| | `backend/routes/sap_sync.py` |
 | | `backend/services/sap_confirmation.py` |
 | | `backend/services/sap_real_client.py` |
 | | `backend/config/sap_config.py` |
@@ -60,167 +78,210 @@ Each file belongs to exactly one workstream for the duration. If you need a chan
 | | `Frontend/…/pages/hercules-sfms/Admin.tsx` |
 | | `Frontend/…/pages/hercules-sfms/KpiCalculations.tsx` |
 | | `Frontend/…/pages/hercules-sfms/ScadaReadings.tsx` |
+| | `Frontend/…/pages/hercules-sfms/LiveMonitor.tsx` |
+| | `Frontend/…/components/LiveDataTable.tsx` |
+| | `Frontend/…/contexts/ScadaContext.tsx` |
 | | `Frontend/…/components/TimeFilter.tsx` |
+
+### Sectioned shared files
+
+Two files are edited by both, but never on the same lines. Commit 0 created the sections.
+
+| File | Rule |
+|---|---|
+| `Frontend/client/src/lib/api.ts` | Three stub clients were added in commit 0. Fill in **your** block only. |
+| `setup_sap_postgres.sql` | All three tables were added in commit 0. Further changes to **your** table go in your own `backend/migrate_*.py`. Reconciled once at the end. |
+
+### No change expected
+
+`Frontend/…/components/ShiftIndicator.tsx` already reads `/api/shifts` correctly and is the reference implementation for B6. Leave it alone.
 
 ### Frozen interfaces
 
-Two surfaces cross the boundary. Their signatures and return shapes stay as they are — change the implementation behind them freely, not the contract. Also written into `backend/CONTRACTS.md` so it is reviewable in the repo.
-
 | Surface | Owner | Contract |
 |---|---|---|
-| `services/scale_service` | B | `get_scada_reading`, `calculate_deltas`, `get_multiple_scada_readings`, `sum_dm_readings_for_order` keep their signatures, and `MILLING_FIELDS` / `INPUT_FIELDS` stay importable as lists of tag strings. A imports all of these at `order_validation.py:5599`. Populate the module-level names from `scada_tags` at import time and the existing imports keep resolving. |
-| `classify_order(order)` | A | Stays importable as `from routes.order_validation import classify_order` — move the implementation into the service and re-export if you like, but the path stays valid. Return dict keeps the keys `order_type`, `equipment`, `formula`, `byproduct`, `packing_info`, `error`. B's `scada_routes.py:489` calls it. |
+| `services/scale_service` | B | `get_scada_reading`, `calculate_deltas`, `get_multiple_scada_readings`, `sum_dm_readings_for_order` keep their signatures, and `MILLING_FIELDS` / `INPUT_FIELDS` stay importable as lists of tag strings. A imports all of these at `order_validation.py:5599`. Populate the module-level names from `scada_tags` at import time and existing imports keep resolving. |
+| `classify_order(order)` | A | Stays importable as `from routes.order_validation import classify_order`. Return dict keeps the keys `order_type`, `equipment`, `formula`, `byproduct`, `packing_info`, `error`. B's `scada_routes.py:489` calls it. |
 
 ### Two practical traps
 
-**Do not commit a frontend build.** The compiled bundle is committed at `backend/public/assets/index-*.js` and is *not* gitignored. If we both run `npm run build` we conflict on it on every push, with a meaningless diff. Nobody commits a build during the sprint — one build at the end, from one machine.
+**Do not commit a frontend build.** The compiled bundle is committed at `backend/public/assets/index-*.js` and is *not* gitignored. If we both run `npm run build` we conflict on it on every push. One build at the end, from one machine.
 
-**Migrations get separate files.** Follow the existing convention — a standalone `backend/migrate_<name>.py` per change. Don't add steps to each other's scripts, and don't put migrations in `app.py`; the inline `ALTER TABLE` blocks already in `create_app()` are the pattern we're moving away from.
+**Migrations get separate files.** A standalone `backend/migrate_<name>.py` per change. Don't add steps to each other's scripts, and don't put migrations in `app.py`.
 
 ---
 
-## 2. Commit 0 — done (`2ccc67f`)
+## 3. Commit 0 — done (PR #1)
 
-Purely additive: 622 insertions, no deletions, no behaviour change. The new blueprints return empty lists or `501`; the new tables are additive and seeded to reproduce today's behaviour. It exists so neither branch ever has to open a shared file.
+Purely additive, no behaviour change. Exists so neither branch ever opens a shared file.
 
-| What | Why it had to happen first |
+| What | Collision it removes |
 |---|---|
-| Three stub blueprints registered in `app.py` — `/api/classification`, `/api/scada-config`, `/api/kpi-config` | Both branches add routes. Registering them once removes the only guaranteed `app.py` collision. |
-| Three models imported into the `create_all` block | Same reason, same file. |
-| Three `CREATE TABLE`s + seed data in `setup_sap_postgres.sql` | That file became canonical in `e6cf018`. Both branches would have appended to it. |
-| `backend/CONTRACTS.md` | Frozen interfaces and table ownership, reviewable in the repo instead of in chat. |
+| Three stub blueprints registered in `app.py` — `/api/classification`, `/api/scada-config`, `/api/kpi-config` | Both branches register blueprints |
+| Three models imported into the `create_all` block | Same file |
+| Three `CREATE TABLE`s + seed data in `setup_sap_postgres.sql` | Both branches add tables |
+| Three stub clients in `Frontend/client/src/lib/api.ts` | Both branches add API clients |
+| `backend/CONTRACTS.md` | Contract reviewable in the repo |
 
-Seed data reproduces current behaviour exactly, so a fresh database matches production: material prefixes 13/14, plant 3130, the current `ALLOWED_SCADA_FIELDS`, and the nine KPI ceilings as the code applies them today. Where the repo disagrees with itself, the row is seeded with what the code does now and flagged in a comment for the owner to resolve — see [§5](#5-known-discrepancies-to-resolve).
+Seed data reproduces current behaviour, so a fresh DB matches production. Where the repo disagrees with itself, the row is seeded with **what the code does today** and flagged in a comment — see §6.
 
-**After commit 0:** further changes to *your* table go in your own `migrate_*.py`. `setup_sap_postgres.sql` gets reconciled once, at the end, in a single cleanup PR. Merge order between the two branches doesn't matter — the file sets are disjoint, so neither blocks the other.
-
-> **Both feature branches start from `main` *after* commit 0 merges.** Branching off `e6cf018` reintroduces exactly the collisions this commit removes.
+> **Both feature branches start from `main` *after* commit 0 merges.** Branching off `e6cf018` reintroduces the collisions it removes.
 
 ---
 
-## 3. Workstream A — Order routing
+## 4. Workstream A — Order routing
 
 **Branch** `feat/dynamic-order-routing` · **Owner** Mohamed
 
-One database-backed answer to *"which physical scales does this order read, and with what formula?"* There are currently three answers in three modules, and they disagree.
+Delivers capabilities **6**, and finishes **2** and **3**.
 
-| ID | Task | Replaces |
+| ID | Task | Acceptance |
 |---|---|---|
-| **A1** | **Classification rules.** Fill in the CRUD behind `/api/classification` over the seeded `classification_rules` table — material prefix → `order_type`, plant → department. | `prefix == "13"` / `"14"` at `order_validation.py:6247`; `"3130" in plant` plus 14 further `plant, "3130"` defaults |
-| **A2** | **Packing line mapping into the database.** Extend `palletizer_mapping` with the SCADA tag per line and rename the two misleading columns. Delete the constant and the 32.0 fallback. Fix the BK10 row — see §5. | `PL_TO_SCADA` at `order_validation.py:5681`; `_get_bags_per_pallet_from_palletizer_type` returning a hardcoded `32.0` at `:5699` |
-| **A3** | **Single classifier, with a cache.** Move `classify_order` into `services/classification_service.py` behind a thread-safe TTL cache, re-exported from its current path. It runs once per order per worker cycle (60 s) and once per order on every SAP pull, so an uncached read adds a query per order per minute. Invalidate from the mapping CRUD routes, or edits won't take effect until the TTL expires. | — |
-| **A4** | **Point the live shift updater at the classifier.** Delete both constants from `shift_live_update.py` and call the shared service. Reconcile the value differences first. | `MILLING_PV_SPECS` at `shift_live_update.py:12`; `PL_TO_SCADA` at `:30` |
-| **A5** | **Validator tuning into settings.** Both constants move to `system_settings`, which already has get/set helpers. Delete the dead `services/order_validation_service.py` — nothing imports it, and its own import of `postgres_session` would fail if anything did. | `TOLERANCE_PCT`, `WORKER_SLEEP_SECONDS` at `order_validation.py:5866–5867`; `RECIPE_MAP` in the dead module |
-| **A6** | **Screens for the new rules.** `MaterialMap.tsx` gains the classification-rule editor; `PalletizerMapping.tsx` gains the SCADA-tag column and the renamed fields. | — |
+| **A1** | **Classification rules.** Implement CRUD behind `/api/classification/rules` over the seeded `classification_rules` table. Replace `prefix == "13"` / `"14"` (`order_validation.py:6247`) and the 16 `plant, "3130"` defaults with lookups. | Adding a rule for prefix `15` → MILLING routes a `15…` order without a code change. |
+| **A2** | **Packing line mapping into the database.** Add the SCADA tag per line to `palletizer_mapping`; delete `PL_TO_SCADA` (`order_validation.py:5681`) and the hardcoded `32.0` fallback (`:5699`). Rename the two transposed columns — see §6. Fix the BK10 row. | A new packing line is added through the screen, with no code edit, and its orders track. |
+| **A3** | **Single classifier, with a cache.** Move `classify_order` into `services/classification_service.py` behind a thread-safe TTL cache, re-exported from its current path. It runs once per order per worker cycle (60 s) and once per order on every SAP pull, so an uncached read adds a query per order per minute. Invalidate from the mapping CRUD routes. | Editing a mapping in Material Map takes effect within one worker cycle. No increase in query count under load. |
+| **A4** | **Point the live shift updater at the classifier.** Delete `MILLING_PV_SPECS` (`shift_live_update.py:12`) and `PL_TO_SCADA` (`:30`); call the shared service. **Reconcile the value differences first — §6.** | A version added through Material Map produces shift weights. An unknown version logs an error instead of silently writing nothing. |
+| **A5** | **Validator tuning into settings.** `TOLERANCE_PCT` and `WORKER_SLEEP_SECONDS` (`order_validation.py:5866–5867`) move to `system_settings`. Delete the dead `services/order_validation_service.py` — nothing imports it, and its own import of `postgres_session` would fail if anything did. | Changing the worker interval takes effect on the next cycle without a restart. |
+| **A6** | **Screens.** `MaterialMap.tsx` and `PalletizerMapping.tsx` **already do full CRUD** against their endpoints — do not rebuild that. Add the classification-rule editor to Material Map, and the SCADA-tag column plus renamed fields to Palletizer Mapping. Also `material_routes.py:59` hardcodes `'PL601'` as the default packing line; drive it from the rules. | An admin can add a classification rule and a packing line from the UI. |
+| **A7** | **Baseline guard.** `_get_baseline_for_tag` (`order_validation.py:6711`) falls through to `get_attr_safe(order, f"baseline_{tag}", 0.0)`, which returns `0.0` for any tag with no column. Make an unknown tag raise or return `None` and fail the order loudly. | An order referencing an unmapped tag is rejected with a clear error instead of reporting its full lifetime counter as production. |
 
-> **Why A4 matters more than it looks.** `update_live_shift_production` is scheduled every 60 seconds from `app_scheduler.py:440` and writes `weight_shift_a/b/c` — the values confirmed to SAP at shift end. It resolves equipment from its own hardcoded map while order validation resolves from the database table. Any version added through `/api/milling-mapping` has never reached it, and a version it doesn't recognise is skipped silently.
+> **A4 is the one with a live symptom.** `update_live_shift_production` is scheduled every 60 s from `app_scheduler.py:440` and writes `weight_shift_a/b/c` — the values confirmed to SAP at shift end. It resolves equipment from its own hardcoded map while order validation uses the database. Any version added through `/api/milling-mapping` has never reached it.
+
+> **A7 protects B's work.** Without it, the tag registry hands B a way to configure a tag that produces silently wrong SAP confirmations. Land it before B activates any new tag.
 
 ---
 
-## 4. Workstream B — Signals and metrics
+## 5. Workstream B — Signals and metrics
 
 **Branch** `feat/dynamic-plant-config` · **Owner** Imroz
 
-No SCADA tag, KPI limit, endpoint or credential written into source. Everything a different plant or a different mill line would need to change lives in a table or an environment variable.
+Delivers capabilities **7** and **8**, and finishes **9**.
 
-| ID | Task | Replaces |
+| ID | Task | Acceptance |
 |---|---|---|
-| **B1** | **SCADA tag registry.** Fill in the CRUD behind `/api/scada-config` and point every hardcoded list at the seeded `scada_tags` table. Carry per tag: category, reading type (WG hi/lo pair, DM 30-second average, PL/SL counter), source column, rollover limit, and whether it's pollable. | Five field lists at `scale_service.py:725–768`; `ALLOWED_SCADA_FIELDS`; duplicate lists at `scada_routes.py:300` and `:636`; `SCALE_CATEGORIES` and `REALISTIC_STARTING_VALUES` at `embedded_emulator.py:59–87`; `SCADA_KEYS` at `app_scheduler.py:272` |
-| **B2** | **Rollover and range limits per tag.** The palletizer wrap-around and the emulator's low-word ceiling become registry columns rather than literals in two modules. | `PALLETIZER_MAX = 100000` at `scale_service.py:1107` (also `:1595`); `LO_MAX = 1000000` at `embedded_emulator.py:425` |
-| **B3** | **Close the counter gap.** The five `SL60x_COUNTER` tags are seeded but inactive. Verify them against `Book1.xlsx` and the emulator, then activate — or record why not. | Tags absent from `ALLOWED_SCADA_FIELDS` while `process_orders` carries matching `baseline_sl60x_counter` columns and the scheduler polls `SL601_COUNTER` |
-| **B4** | **KPI definitions.** Fill in the CRUD behind `/api/kpi-config` and read the ceilings and display-name maps from the seeded `kpi_config` table. Nameplate rate reads from `system_settings.mill_nameplate_tph`. Resolve the documented-vs-applied ceiling difference first. | `nameplate_tph = 25.0` at `kpi_routes.py:262` and the repeat at `:328`; nine `min(...)` ceilings between `:272` and `:383`; `MILLING_MAP` / `PACKING_MAP` at `kpi_store_flat.py:6` and `:20`; `plant = "3130"` defaults at `kpi_routes.py:858` and `:1145` |
-| **B5** | **Finish the config hardening.** `e6cf018` added the plumbing; every secret still survives as the fallback default, so the repo still carries them. Drop the literals, fail fast when a required variable is missing, and scrub the header comment in `setup_sap_postgres.sql`. Then `CORS_ALLOWED_ORIGINS` (`app.py:465`), `SOURCE_TABLE` and the poll intervals (`app_scheduler.py:272–281`). | `os.getenv("SAP_PASSWORD", "P@ssw0rd…")` and the same shape in `database.py`, `auth_service.py`, `sap_config.py`, `sap_confirmation.py`, `sap_real_client.py`, `kpi_shift_auto_sync.py`, `sap_sync.py` |
-| **B6** | **Retire `services/auto_validator.py`.** It holds a second, unreachable `classify_order` with its own hardcoded maps. Its only live export is `_convert_to_tons` (imported at `sap_sync.py:317`); the module object is imported at `app.py:365`. Both are your files, so move the function to a shared util and delete the module. | `MILLING_PV_MAPPING` at `auto_validator.py:60`; `PACKING_PV_MAPPING` at `:85`, plus the silent defaults at `:192` and `:196` |
-| **B7** | **Screens read their own config.** `Admin.tsx` drops its shift table and calls `/api/shifts`, which already exists and works — `ShiftIndicator.tsx` is a complete reference to copy. `KpiCalculations.tsx` and `ScadaReadings.tsx` take their tag and limit lists from the new endpoints. | `SHIFT_SCHEDULES` at `Admin.tsx:144`; `SHIFT_OPTIONS` at `TimeFilter.tsx:34`; inline tag lists across the three pages |
+| **B1** | **SCADA tag registry.** Implement CRUD behind `/api/scada-config/tags` and point every hardcoded list at `scada_tags`: five field lists (`scale_service.py:725–768`), `ALLOWED_SCADA_FIELDS` (`:768`), the duplicated lists (`scada_routes.py:300`, `:636`), `SCALE_CATEGORIES` / `REALISTIC_STARTING_VALUES` (`embedded_emulator.py:59–87`), and `SCADA_KEYS` (`app_scheduler.py:272`). | Disabling a tag in the registry removes it from polling, the emulator and the readings API, with no code change. |
+| **B2** | **Rollover and range limits per tag.** `PALLETIZER_MAX = 100000` (`scale_service.py:1107`, also `:1595`) and `LO_MAX = 1000000` (`embedded_emulator.py:425`) become registry columns. | Changing a rollover value changes delta maths without a deploy. |
+| **B3** | **Close the counter gap.** The five `SL60x_COUNTER` tags are seeded **inactive**. They exist in `ASMArchive_DB5` and `process_orders` has matching `baseline_sl60x_counter` columns, but they are absent from `ALLOWED_SCADA_FIELDS`, so reads return `None` — while `app_scheduler.SCADA_KEYS` polls `SL601_COUNTER` anyway. Verify against `Book1.xlsx`, then activate or record why not. **Do not activate before A7 lands.** | Either the counters read real values, or a comment records the reason they stay off. |
+| **B4** | **KPI definitions.** Implement CRUD behind `/api/kpi-config/definitions`; read ceilings and display-name maps from `kpi_config`. Nameplate reads `system_settings.mill_nameplate_tph`. Replaces `nameplate_tph = 25.0` (`kpi_routes.py:262`, repeated `:328`), the nine `min(...)` ceilings (`:272–:383`), `MILLING_MAP` / `PACKING_MAP` (`kpi_store_flat.py:6`, `:20`), and the `plant = "3130"` defaults (`:858`, `:1145`). Resolve the documented-vs-applied difference first — §6. | Changing a ceiling changes the reported KPI on the next refresh. |
+| **B5** | **Finish the config hardening.** `e6cf018` added the plumbing; every secret still survives as the fallback default, so the repo still carries them. Drop the literals, fail fast on a missing required variable, scrub the header comment in `setup_sap_postgres.sql`. Then `CORS_ALLOWED_ORIGINS` (`app.py:472`), `SOURCE_TABLE` and the poll intervals (`app_scheduler.py:280–281`). | Starting with no `.env` fails with a named-variable error, not a silent connection to production. |
+| **B6** | **Admin shifts fallback.** The shifts tab **already does full CRUD** against `/api/shifts` — do not rebuild it. `SHIFT_SCHEDULES` (`Admin.tsx:144`) is only the `useState` initial value (`:453`), so a failed or empty fetch silently shows hardcoded times that disagree with the seed. Remove the fallback, show a real empty/error state. Same for `SHIFT_OPTIONS` (`TimeFilter.tsx:34`). | With the API down, the screen says so instead of showing plausible wrong times. |
+| **B7** | **Screens read the registry.** `KpiCalculations.tsx` and `ScadaReadings.tsx` take their tag and limit lists from the new endpoints. `KpiCalculations.tsx:914–929` also displays **fabricated fallback numbers** (`100.00`, `36.42`, `66.92`, `13.41`, `19.67`, `12.01`…) when `kpiData` is null — an operator cannot tell those from real readings. Replace with an explicit no-data state. | No screen ever shows a number that isn't measured. |
+| **B8** | **SCADA persistence path.** `scada_persist.py` hardcodes 14 tags in both the `INSERT` and the params dict, and `create_scada_table.py` hardcodes the same 14 `VALUE_*` columns. **`PL602_TOT`, `PL603_TOT`, `SL606_TOT` and `SL607_TOT` are collected by the scheduler and then silently dropped.** Drive both from the registry. Delete `models/create_pg_schema.py` — a dead duplicate that nothing imports. | Every pollable tag reaches `scada_aggregate_values`. |
+| **B9** | **Live monitoring screens.** `LiveMonitor.tsx` (23 hardcoded tags) and `LiveDataTable.tsx` (16) list tags inline. Drive from `scadaConfigApi`. `ScadaContext.tsx` also hardcodes the business-name mapping (`cleaningScale`, `dryWheatScale`, …) mirroring `scada_routes.py:768–782`; move that mapping into the registry's `display_name`. | Adding a tag to the registry makes it appear on the live screens. |
 
-> **B5 has an ops half.** The SAP, MSSQL and PostgreSQL credentials and the JWT signing key are in a public repository's history, so they stay reachable no matter what the code does next. Removing the fallbacks is the code half; rotating them is the ops half and needs whoever owns those accounts. Neither half is sufficient alone.
+> **B5 has an ops half.** The credentials and JWT key are in a public repository's history, so they stay reachable regardless of what the code does. Removing the fallbacks is the code half; rotating them is the ops half and needs whoever owns those accounts.
 
 ---
 
-## 5. Known discrepancies to resolve
+## 6. Discrepancies to resolve before coding
 
-All verifiable from the repository — the two CSVs are exports of the live tables and `Book1.xlsx` is a real 10,000-row sample of `ASMArchive_DB5`. Resolve each before the matching code change: the migration has to seed a value, and picking the wrong one fails silently.
+All verifiable from the repository — the CSVs are exports of the live tables and `Book1.xlsx` is a real 10,000-row sample of `ASMArchive_DB5`. Each one has to be decided before the migration seeds a value, because picking wrong fails silently.
 
-### Milling equipment — three sources, three answers · A4, B6
+### Milling equipment — three sources, three answers · A4, B-delete
 
 | Version | `milling_version_mappings.csv` | `shift_live_update.py` | `auto_validator.py` | Status |
 |---|---|---|---|---|
-| **BRF2** | WG501 | WG502 | WG501, WG502, WG503 | **Live conflict** |
+| **BRF2** | WG501 | **WG502** | WG501, WG502, WG503 | **Live conflict** |
 | **BRF1** | *absent* | WG501 | WG501, WG503 | Not in DB |
 | LWSM | WG101, WG302, DM101, DM102 | matches | WG101, WG302 | No water |
 | CWIM CWLM CWMM CWSM | WG201, WG301, DM201–203 | matches | WG201, WG301 | No water |
-| BKF1 CKF1 IWF1 IWF2 BRF3 MMCF | single scale + byproducts | matches | byproducts merged in | Double count |
+| BKF1 CKF1 IWF1 IWF2 BRF3 MMCF | single scale + byproducts | matches | byproducts merged | Double count |
 | IWSM SWSM | WG101, WG302 | matches | matches | Agreed |
 
-**BRF2 is the one actually running wrong.** The database says confirmed weight comes off WG501; the scheduled shift updater reads WG502. Different physical scales, so BRF2 shift weights have been going to SAP off the wrong stream. Decide which is correct before A4 lands — the `scada_recipe_name` column in the CSV (`F80 + F95` for BRF2) is the best in-repo evidence.
+**BRF2 is running wrong today.** The database says confirmed weight comes off WG501; the scheduled shift updater reads WG502. Different physical scales, so BRF2 shift weights have gone to SAP off the wrong stream. The `scada_recipe_name` column (`F80 + F95` for BRF2) is the best in-repo evidence.
 
-The `auto_validator` column is listed for completeness. That classifier is unreachable, so its disagreements cause no production symptoms and the module is simply deleted in B6.
+The `auto_validator` column is listed for completeness only — that classifier is unreachable, so its disagreements cause no production symptoms and the module is deleted.
 
-### Packing mapping · A2, B6
+### Packing mapping · A2
 
 - The eight `*L1` / `*L2` versions each have a single line in `palletizer_mapping.csv` (CKL1→PL601, CKL2→PL602, …) but `auto_validator` lists both PL601 and PL602 for all of them.
 - `KL1` and `KL2` exist only in `auto_validator`; `CK05` exists only in the database.
 
-**Column names don't mean what they say.** `_convert_packing_delta_to_bags` at `order_validation.py:5718` uses `bag_size_kg` as the *bags-per-pallet multiplier*, and the CSV agrees — CKL1 carries `bag_size_kg = 32` with `kg_per_pallet = 45`, i.e. 32 bags of 45 kg. The two columns are transposed relative to their names, and `bags_per_pallet` sits unused at 1.
+**The column names are transposed.** `_convert_packing_delta_to_bags` (`order_validation.py:5718`) uses `bag_size_kg` as the *bags-per-pallet multiplier*, and the CSV agrees — CKL1 carries `bag_size_kg = 32` with `kg_per_pallet = 45`, i.e. 32 bags of 45 kg. `bags_per_pallet` sits unused at 1.
 
-**One row breaks the pattern.** BK10 is stored as `bag_size_kg = 10, bags_per_pallet = 110, kg_per_pallet = 1200`, where the three comparable 10 kg versions on the same line — BW10, IW10, CK10 — are all `bag_size_kg = 110, kg_per_pallet = 10`. As the code reads it, BK10 converts at 10 bags per pallet instead of 110. Confirm against a real BK10 order before A2 renames anything.
+**BK10 breaks the pattern.** Stored as `bag_size_kg = 10, bags_per_pallet = 110, kg_per_pallet = 1200`, where BW10, IW10 and CK10 — same line, same bag weight — are all `bag_size_kg = 110, kg_per_pallet = 10`. As the code reads it, BK10 converts at 10 bags per pallet instead of 110.
 
-### Packing shift times — three values · B7
+### Packing shift times — three values · B6
 
 | Source | Shift A | Shift B | Coverage |
 |---|---|---|---|
 | `setup_sap_postgres.sql` (seed) | 07:00 – 19:00 | 19:00 – 07:00 | 24 h |
-| `Admin.tsx:150` | 07:30 – 15:30 | 15:30 – 23:30 | 16 h |
+| `Admin.tsx:151` | 07:30 – 15:30 | 15:30 – 23:30 | 16 h |
 | `SHIFT_CODE_SUMMARY.md` | 07:30 – 15:30 | 15:30 – 23:30 | 16 h |
 
-Milling agrees across all three (07:00 / 15:00 / 23:00). Packing does not. A fresh database seeds 12-hour packing shifts while the UI shows 8-hour ones — and shift boundaries drive when confirmations fire, so this needs a decision before B7 makes `Admin.tsx` read from the table.
-
-### SCADA registry gaps · B1, B3
-
-From the column list in `Book1.xlsx`, against `ALLOWED_SCADA_FIELDS`:
-
-- `SL601_COUNTER` … `SL607_COUNTER` exist in the source table and `process_orders` carries matching `baseline_sl60x_counter` columns — but the tags aren't in the allow-list, so `get_scada_reading` returns `None` for all of them. `app_scheduler.SCADA_KEYS` also polls `SL601_COUNTER`, which the service then rejects. Seeded inactive in commit 0 pending B3.
-- `WG*_Product`, `WG*_Destination`, `SL60x_Product` and `SL60x_SIZE` are populated at source and unused everywhere. Out of scope now, but they may make some version mapping unnecessary later.
-- Source casing is inconsistent — `SL601_Product` against `SL602_PRODUCT`. The registry stores the exact source column rather than deriving it.
-- There is no `PL606_TOT` or `PL607_TOT`; those lines report as `SL606_TOT` / `SL607_TOT`. That asymmetry is the whole reason `PL_TO_SCADA` exists, so line identity and tag name stay separate fields.
+Milling agrees everywhere (07:00 / 15:00 / 23:00). Packing does not. Shift boundaries decide when confirmations fire, so this needs a decision before B6 removes the fallback.
 
 ### KPI ceilings — document against code · B4
 
-`generate_kpi_doc.py` is the authoritative formula reference and disagrees with the implementation twice: it documents a 150 % ceiling for both *Mill Throughput* (line 61) and *Max Utilization of Milling Capacity* (line 387), while `kpi_routes.py` caps both at 100 % (lines 272 and 330). Throughput above nameplate is physically meaningful, so the 100 % cap may be hiding real over-performance. Commit 0 seeded 100 to match current behaviour; change it in B4 if 150 is right.
+`generate_kpi_doc.py` documents a 150 % ceiling for both *Mill Throughput* (line 61) and *Max Utilization of Milling Capacity* (line 387); `kpi_routes.py` caps both at 100 % (`:272`, `:330`). Throughput above nameplate is physically meaningful, so the 100 % cap may be hiding real over-performance. Commit 0 seeded **100** to match current behaviour.
+
+### SCADA registry gaps · B1, B3, B9
+
+From the column list in `Book1.xlsx`, against `ALLOWED_SCADA_FIELDS`:
+
+- `SL601_COUNTER` … `SL607_COUNTER` exist at source and have matching `baseline_sl60x_counter` columns, but aren't in the allow-list, so reads return `None`. The scheduler polls `SL601_COUNTER` anyway.
+- `PL602_TOT`, `PL603_TOT`, `SL606_TOT`, `SL607_TOT` are polled but dropped by `scada_persist.py`.
+- `WG*_Product`, `WG*_Destination`, `SL60x_Product`, `SL60x_SIZE` are populated at source and unused everywhere.
+- Source casing is inconsistent — `SL601_Product` vs `SL602_PRODUCT`. Store the exact source column, don't derive it.
+- There is no `PL606_TOT` or `PL607_TOT`; those lines report as `SL606_TOT` / `SL607_TOT`. That asymmetry is why `PL_TO_SCADA` exists, so line identity and tag name stay separate fields.
 
 ---
 
-## 6. Reference data in the repo
+## 7. Endpoint contracts
+
+Agreed in commit 0 so both sides can build against them without waiting. Stubs exist in `backend/routes/*_routes.py` and `Frontend/client/src/lib/api.ts`.
+
+```
+GET    /api/classification/rules              -> ClassificationRule[]
+POST   /api/classification/rules              <- ClassificationRuleRequest  -> {success, message}
+DELETE /api/classification/rules/:id                                        -> {success, message}
+
+GET    /api/scada-config/tags?category=       -> ScadaTag[]
+POST   /api/scada-config/tags                 <- ScadaTagRequest            -> {success, message}
+DELETE /api/scada-config/tags/:id                                           -> {success, message}
+
+GET    /api/kpi-config/definitions?department= -> KpiDefinition[]
+POST   /api/kpi-config/definitions             <- KpiDefinitionRequest      -> {success, message}
+DELETE /api/kpi-config/definitions/:id                                      -> {success, message}
+```
+
+TypeScript interfaces for all three are in `lib/api.ts`. POST is upsert — include `id` to update.
+
+---
+
+## 8. Reference data in the repo
 
 | File | What it gives you | Used by |
 |---|---|---|
-| `milling_version_mappings.csv` | Export of the live table — 14 versions with scales, formula and byproduct assignments. Seed source for milling mapping. | A4 |
-| `palletizer_mapping.csv` | Export of the live table — 22 versions with line, multiplier and bag weight. | A2 |
-| `Book1.xlsx` | 10,000 real rows of `ASMArchive_DB5`, all 63 columns. The definitive tag inventory, and real values to test hi/lo concatenation and rollover against. | B1, B2, B3 |
-| `generate_kpi_doc.py` | Every KPI formula, constant, ceiling and a worked example, in source form. | B4 |
-| `setup_sap_postgres.sql` | Canonical schema, all 25 tables including the three added in commit 0. Rebuild a clean DB from it. | both |
+| `milling_version_mappings.csv` | Export of the live table — 14 versions with scales, formula, byproducts. | A4 |
+| `palletizer_mapping.csv` | Export of the live table — 22 versions with line, multiplier, bag weight. | A2 |
+| `Book1.xlsx` | 10,000 real rows of `ASMArchive_DB5`, all 63 columns. Definitive tag inventory; real values to test hi/lo concatenation and rollover. | B1, B2, B3, B8 |
+| `generate_kpi_doc.py` | Every KPI formula, constant, ceiling and a worked example, in source. | B4 |
+| `setup_sap_postgres.sql` | Canonical schema, 25 tables. Rebuild a clean DB from it. | both |
 | `ENDPOINT_TO_DB_MAPPING.md` | Every endpoint mapped to the tables it reads and writes. | both |
-| `backend/.env.example` | The variable names the code now reads. | B5 |
-| `backend/CONTRACTS.md` | Frozen interfaces, file ownership, table ownership. | both |
-| `backend/HARDCODED_SHIFTS_SUMMARY.md` | Prior inventory of the shift constants. It references functions that no longer exist in the live code — history, not a checklist. | context |
+| `backend/.env.example` | The variable names the code reads. | B5 |
+| `backend/CONTRACTS.md` | Frozen interfaces, file and table ownership. | both |
+| `ShiftIndicator.tsx` | Working reference for reading `/api/shifts`. | B6 |
+| `backend/HARDCODED_SHIFTS_SUMMARY.md` | Prior inventory. References functions that no longer exist — history, not a checklist. | context |
 
 ---
 
-## 7. Out of scope this round
+## 9. Out of scope this round
 
-Named so neither branch drifts into it:
-
-- `backend/services/shift_auto_confirm.py` — unowned. It derives department from plant the same hardcoded way, but it's the shift-end SAP confirmation path and changing it alongside everything else is more risk than the cleanup is worth.
-- The single `department = "MILLING" if "3130" in plant` at `sap_confirmation.py:362`. B owns that file for B5 but leaves this line; it moves to A's classification service once both branches merge.
-- The five duplicate `sync_interval_routes*.py` files and the unregistered `process_orders_clean.py`. Dead, but deleting them is a separate PR with its own review.
-- The commented-out code — 43 % of `order_validation.py`, 52 % of `process_orders.py`. Tempting while you're in there; it makes every diff unreviewable. Separate PR, after this work lands.
+- `backend/services/shift_auto_confirm.py` — unowned. It derives department from plant the same hardcoded way, but it is the shift-end SAP confirmation path; changing it alongside everything else is more risk than the cleanup is worth.
+- The single `department = "MILLING" if "3130" in plant` at `sap_confirmation.py:355`. B owns that file for B5 but leaves this line; it moves to A's classification service once both branches merge.
+- The five duplicate `sync_interval_routes*.py` files and the unregistered `process_orders_clean.py`. Dead, but a separate PR.
+- The commented-out code — 43 % of `order_validation.py`, 52 % of `process_orders.py`. It makes every diff unreviewable. Separate PR, after this lands.
+- `WG*_Product` / `WG*_Destination` / `SL60x_SIZE` — populated at source, unused. They may make some version mapping unnecessary later; not now.
 
 ---
 
-## 8. Done means
+## 10. Done means
 
 - No literal listed above survives in source — `grep` for each returns only migration seed data and tests.
-- Every moved value has an endpoint and a screen, and changing it takes effect without a restart.
-- A fresh database seeded from `setup_sap_postgres.sql` produces the same classification, the same shift weights and the same KPI numbers as production does today — except where §5 records a deliberate decision to differ.
+- Every capability in §1 marked ❌ or ⚠️ is editable from a screen, and takes effect without a restart.
+- A fresh database seeded from `setup_sap_postgres.sql` produces the same classification, the same shift weights and the same KPI numbers as production does today — except where §6 records a deliberate decision to differ.
+- No screen displays a number that isn't measured.
+- An order referencing an unmapped tag fails loudly (A7).
 - The two frozen interfaces have identical signatures to commit 0.
 - One frontend build, committed once, at the end.
