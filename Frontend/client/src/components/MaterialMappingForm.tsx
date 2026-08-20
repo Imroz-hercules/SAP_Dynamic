@@ -59,8 +59,12 @@ const MaterialMappingForm: React.FC<MaterialMappingFormProps> = ({ onAdd }) => {
           setMillingVersions(millingVersionList);
           console.log('✅ Loaded milling versions from API:', millingVersionList);
         } else {
-          console.warn('⚠️ Failed to fetch milling versions, using fallback');
-          setMillingVersions(['LWSM', 'IWSM', 'SWSM', 'CWIM', 'CWLM', 'CWMM', 'CWSM', 'BKF1', 'CKF1', 'IWF1', 'IWF2', 'BRF1', 'BRF2', 'BRF3', 'MMCF']);
+          // A6: was a hardcoded list that still included BRF1, which A4 retired
+          // — it has no milling_version_mappings row, so an order on it fails
+          // classification. Showing versions that do not exist invites exactly
+          // that. Empty is honest.
+          console.warn('⚠️ Failed to fetch milling versions');
+          setMillingVersions([]);
         }
         
         // Fetch packing versions from API
@@ -77,14 +81,13 @@ const MaterialMappingForm: React.FC<MaterialMappingFormProps> = ({ onAdd }) => {
           );
           console.log('✅ Loaded packing versions from API:', packingVersionList);
         } else {
-          console.warn('⚠️ Failed to fetch packing versions, using fallback');
-          setPackingVersions(['CKL1', 'CKL2', 'BKL1', 'BKL2', 'BWL1', 'BWL2', 'IWL1', 'IWL2', 'BK10', 'BW10', 'IW10', 'CK10', 'EB25', 'BR40', 'CM01', 'BM01', 'QRC1', 'QRW1', 'MM01', 'BK05']);
+          console.warn('⚠️ Failed to fetch packing versions');
+          setPackingVersions([]);
         }
       } catch (error) {
         console.error('❌ Error fetching versions:', error);
-        // Fallback to default versions on error
-        setMillingVersions(['LWSM', 'IWSM', 'SWSM', 'CWIM', 'CWLM', 'CWMM', 'CWSM', 'BKF1', 'CKF1', 'IWF1', 'IWF2', 'BRF1', 'BRF2', 'BRF3', 'MMCF']);
-        setPackingVersions(['CKL1', 'CKL2', 'BKL1', 'BKL2', 'BWL1', 'BWL2', 'IWL1', 'IWL2', 'BK10', 'BW10', 'IW10', 'CK10', 'EB25', 'BR40', 'CM01', 'BM01', 'QRC1', 'QRW1', 'MM01', 'BK05']);
+        setMillingVersions([]);
+        setPackingVersions([]);
       } finally {
         setVersionsLoading(false);
       }
@@ -171,18 +174,15 @@ const MaterialMappingForm: React.FC<MaterialMappingFormProps> = ({ onAdd }) => {
         // Extract unique values from existing data
         const uniqueScales = Array.from(new Set(data.map((item: any) => item.scale).filter(Boolean))) as string[];
 
-        // Set options with fallback to default values if no data exists
-        setScaleOptions(uniqueScales.length > 0 ? uniqueScales : [
-          'Small Scale',
-          'Medium Scale', 
-          'Large Scale',
-          'Industrial Scale',
-          'Custom Scale'
-        ]);
+        // A6: the fallback here used to offer 'Small Scale', 'Medium Scale',
+        // 'Large Scale'… — placeholder strings, not SCADA tags. Since A7 that is
+        // no longer merely useless: a mapping saved with one of those names has
+        // no baseline column, so every order on that version now HALTS. An
+        // empty list and a visible message is the correct failure.
+        setScaleOptions(uniqueScales);
       } catch (error) {
         console.error('Error fetching dropdown data:', error);
-        // Fallback to default options on error
-        setScaleOptions(['Small Scale', 'Medium Scale', 'Large Scale', 'Industrial Scale', 'Custom Scale']);
+        setScaleOptions([]);
       } finally {
         setLoading(false);
       }
