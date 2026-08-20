@@ -26,9 +26,34 @@ The goal is that a plant engineer can change how the system behaves **without a 
 | 6 | Which material prefixes and plants mean MILLING vs PACKING | — | ❌ **Not possible** — hardcoded |
 | 7 | Which SCADA tags exist, their reading type and rollover | — | ❌ **Not possible** — hardcoded in 6 places |
 | 8 | KPI ceilings and the mill nameplate rate | — | ❌ **Not possible** — hardcoded |
-| 9 | Connection details, SAP endpoint, credentials | `backend/.env` | ⚠️ **Partly** — env works, literals remain as fallbacks |
+| 9 | SAP connection, endpoints, timeouts, poll intervals, MSSQL link | **Engineering** *(new)* | ❌ **Not possible from a screen** — `.env` only; Admin → SAP is a browser-only mock |
 
-**So the work is narrower than it first looks.** Rows 1, 4 and 5 are already done — don't rebuild them. Rows 2, 3 and 9 are half-done. Rows 6, 7 and 8 are the genuinely new capability.
+**So the work is narrower than it first looks.** Rows 1, 4 and 5 are already done — don't rebuild them. Rows 2 and 3 are half-done. Rows 6, 7, 8 and 9 are the genuinely new capability.
+
+### Engineering page (A8) — one place for plant connection config
+
+There is no Engineering page today. Admin has a **SAP tab that only writes to browser state** — `Admin.tsx:395` says so outright: *"SAP Endpoint Configuration (Demo - stores locally, will connect to backend later)"*. Nothing it saves reaches the backend.
+
+`/engineering` is a new protected screen owned by **Workstream A**. A plant engineer changes runtime configuration there instead of editing `.env` on the server:
+
+| Config group | Fields |
+|---|---|
+| SAP connection | base URL, mock URL, username, password, client |
+| SAP endpoints | orders, milling KPI, packing KPI, Hercules raw, confirm online/offline |
+| Timeouts and intervals | SAP timeout, SCADA poll, PO pull |
+| SQL Server link | `MSSQL_URL`, `MSSQL_ENABLED` (secrets masked on read) |
+| Validator tuning | tolerance %, worker sleep (same values as A5) |
+
+Backend: persist in `system_settings` or a dedicated table; `services/runtime_config.py` is the single reader, resolving **DB → `.env` → documented default**. `.env` stays as first-boot bootstrap.
+
+**Three fields are deliberately excluded** because they cannot work as a live setting — verified in code, not assumed:
+
+| Field | Why it's out |
+|---|---|
+| `POSTGRES_URL` | `database.py:55` reads it and builds the engine at **import time**, before any DB connection exists. You cannot read the Postgres address out of Postgres. Stays in `.env`. |
+| `PORT`, `CORS_ALLOWED_ORIGINS` | Read once at startup (`app.py:756` and `:469`/`:485`). Editing them in the DB changes nothing until a restart, so a screen control would silently do nothing. Stays in `.env`. |
+| `JWT_SECRET` | Saving a new value invalidates every session including the engineer's own, mid-save — and it moves a secret from a file with OS permissions into a DB table plus an HTTP endpoint. Rotate it on the server. |
+
 
 ### What this cannot deliver
 
@@ -66,10 +91,10 @@ Each file belongs to exactly one workstream for the duration. If you need a chan
 | `Frontend/…/pages/hercules-sfms/MaterialMap.tsx` | `backend/services/kpi_store_flat.py` |
 | `Frontend/…/pages/hercules-sfms/PalletizerMapping.tsx` | `backend/services/kpi_incremental.py` |
 | `Frontend/…/components/MaterialMappingForm.tsx` | `backend/services/kpi_shift_auto_sync.py` |
-| | `backend/routes/sap_sync.py` |
-| | `backend/services/sap_confirmation.py` |
-| | `backend/services/sap_real_client.py` |
-| | `backend/config/sap_config.py` |
+| `Frontend/…/pages/hercules-sfms/Engineering.tsx` *(new)* | `backend/routes/sap_sync.py` |
+| `Frontend/…/components/hercules-sfms/Sidebar.tsx` | `backend/services/sap_confirmation.py` |
+| `backend/routes/engineering_routes.py` *(new)* | `backend/services/sap_real_client.py` |
+| `backend/services/runtime_config.py` *(new)* | `backend/config/sap_config.py` |
 | | `backend/services/auth_service.py` |
 | | `backend/utils/vpn_check.py` |
 | | `backend/database.py` · `backend/app.py` |
@@ -102,6 +127,7 @@ Two files are edited by both, but never on the same lines. Commit 0 created the 
 |---|---|---|
 | `services/scale_service` | B | `get_scada_reading`, `calculate_deltas`, `get_multiple_scada_readings`, `sum_dm_readings_for_order` keep their signatures, and `MILLING_FIELDS` / `INPUT_FIELDS` stay importable as lists of tag strings. A imports all of these at `order_validation.py:5599`. Populate the module-level names from `scada_tags` at import time and existing imports keep resolving. |
 | `classify_order(order)` | A | Stays importable as `from routes.order_validation import classify_order`. Return dict keeps the keys `order_type`, `equipment`, `formula`, `byproduct`, `packing_info`, `error`. B's `scada_routes.py:489` calls it. |
+| `services/runtime_config` | A | `get_setting(key)`, `get_sap_config()`, `get_mssql_config()` — resolves DB → `.env` → documented default. B may **call** it; A owns the module. Added by A8. |
 
 ### Two practical traps
 
@@ -129,11 +155,11 @@ Seed data reproduces current behaviour, so a fresh DB matches production. Where 
 
 ---
 
-## 4. Workstream A — Order routing
+## 4. Workstream A — Order routing and plant config
 
 **Branch** `feat/dynamic-order-routing` · **Owner** Mohamed
 
-Delivers capabilities **6**, and finishes **2** and **3**.
+Delivers capabilities **6** and **9**, and finishes **2** and **3**.
 
 | ID | Task | Acceptance |
 |---|---|---|
@@ -143,6 +169,7 @@ Delivers capabilities **6**, and finishes **2** and **3**.
 | **A4** | **Point the live shift updater at the classifier.** Delete `MILLING_PV_SPECS` (`shift_live_update.py:12`) and `PL_TO_SCADA` (`:30`); call the shared service. **Reconcile the value differences first — §6.** | A version added through Material Map produces shift weights. An unknown version logs an error instead of silently writing nothing. |
 | **A5** | **Validator tuning into settings.** `TOLERANCE_PCT` and `WORKER_SLEEP_SECONDS` (`order_validation.py:5866–5867`) move to `system_settings`. Delete the dead `services/order_validation_service.py` — nothing imports it, and its own import of `postgres_session` would fail if anything did. | Changing the worker interval takes effect on the next cycle without a restart. |
 | **A6** | **Screens.** `MaterialMap.tsx` and `PalletizerMapping.tsx` **already do full CRUD** against their endpoints — do not rebuild that. Add the classification-rule editor to Material Map, and the SCADA-tag column plus renamed fields to Palletizer Mapping. Also `material_routes.py:59` hardcodes `'PL601'` as the default packing line; drive it from the rules. | An admin can add a classification rule and a packing line from the UI. |
+| **A8** | **Engineering page.** Build `/engineering` behind `AdminGuard`, add the nav entry in `Sidebar.tsx`, and implement `GET`/`PUT /api/engineering/settings` plus `POST /api/engineering/test-sap`. Add `services/runtime_config.py` as the single reader (DB → `.env` → default). Seed keys from the current `.env.example`. **Retire the browser-only Admin → SAP form** so there is one source of truth. Excludes `POSTGRES_URL`, `PORT`, `CORS`, `JWT_SECRET` — see §1. | An engineer changes the SAP URL, client or timeout, saves, and the next SAP call uses it with no redeploy and no `.env` edit. Secrets are masked on read. |
 | **A7** | **Baseline guard.** `_get_baseline_for_tag` (`order_validation.py:6711`) falls through to `get_attr_safe(order, f"baseline_{tag}", 0.0)`, which returns `0.0` for any tag with no column. Make an unknown tag raise or return `None` and fail the order loudly. | An order referencing an unmapped tag is rejected with a clear error instead of reporting its full lifetime counter as production. |
 
 > **A4 is the one with a live symptom.** `update_live_shift_production` is scheduled every 60 s from `app_scheduler.py:440` and writes `weight_shift_a/b/c` — the values confirmed to SAP at shift end. It resolves equipment from its own hardcoded map while order validation uses the database. Any version added through `/api/milling-mapping` has never reached it.
@@ -163,11 +190,13 @@ Delivers capabilities **7** and **8**, and finishes **9**.
 | **B2** | **Rollover and range limits per tag.** `PALLETIZER_MAX = 100000` (`scale_service.py:1107`, also `:1595`) and `LO_MAX = 1000000` (`embedded_emulator.py:425`) become registry columns. | Changing a rollover value changes delta maths without a deploy. |
 | **B3** | **Close the counter gap.** The five `SL60x_COUNTER` tags are seeded **inactive**. They exist in `ASMArchive_DB5` and `process_orders` has matching `baseline_sl60x_counter` columns, but they are absent from `ALLOWED_SCADA_FIELDS`, so reads return `None` — while `app_scheduler.SCADA_KEYS` polls `SL601_COUNTER` anyway. Verify against `Book1.xlsx`, then activate or record why not. **Do not activate before A7 lands.** | Either the counters read real values, or a comment records the reason they stay off. |
 | **B4** | **KPI definitions.** Implement CRUD behind `/api/kpi-config/definitions`; read ceilings and display-name maps from `kpi_config`. Nameplate reads `system_settings.mill_nameplate_tph`. Replaces `nameplate_tph = 25.0` (`kpi_routes.py:262`, repeated `:328`), the nine `min(...)` ceilings (`:272–:383`), `MILLING_MAP` / `PACKING_MAP` (`kpi_store_flat.py:6`, `:20`), and the `plant = "3130"` defaults (`:858`, `:1145`). Resolve the documented-vs-applied difference first — §6. | Changing a ceiling changes the reported KPI on the next refresh. |
-| **B5** | **Finish the config hardening.** `e6cf018` added the plumbing; every secret still survives as the fallback default, so the repo still carries them. Drop the literals, fail fast on a missing required variable, scrub the header comment in `setup_sap_postgres.sql`. Then `CORS_ALLOWED_ORIGINS` (`app.py:472`), `SOURCE_TABLE` and the poll intervals (`app_scheduler.py:280–281`). | Starting with no `.env` fails with a named-variable error, not a silent connection to production. |
+| **B5** | **Finish the config hardening.** *(Independent of A8 — see sequencing note.)* `e6cf018` added the plumbing; every secret still survives as the fallback default, so the repo still carries them. Drop the literals, fail fast on a missing required variable, scrub the header comment in `setup_sap_postgres.sql`. Then `CORS_ALLOWED_ORIGINS` (`app.py:472`), `SOURCE_TABLE` and the poll intervals (`app_scheduler.py:280–281`). | Starting with no `.env` fails with a named-variable error, not a silent connection to production. |
 | **B6** | **Admin shifts fallback.** The shifts tab **already does full CRUD** against `/api/shifts` — do not rebuild it. `SHIFT_SCHEDULES` (`Admin.tsx:144`) is only the `useState` initial value (`:453`), so a failed or empty fetch silently shows hardcoded times that disagree with the seed. Remove the fallback, show a real empty/error state. Same for `SHIFT_OPTIONS` (`TimeFilter.tsx:34`). | With the API down, the screen says so instead of showing plausible wrong times. |
 | **B7** | **Screens read the registry.** `KpiCalculations.tsx` and `ScadaReadings.tsx` take their tag and limit lists from the new endpoints. `KpiCalculations.tsx:914–929` also displays **fabricated fallback numbers** (`100.00`, `36.42`, `66.92`, `13.41`, `19.67`, `12.01`…) when `kpiData` is null — an operator cannot tell those from real readings. Replace with an explicit no-data state. | No screen ever shows a number that isn't measured. |
 | **B8** | **SCADA persistence path.** `scada_persist.py` hardcodes 14 tags in both the `INSERT` and the params dict, and `create_scada_table.py` hardcodes the same 14 `VALUE_*` columns. **`PL602_TOT`, `PL603_TOT`, `SL606_TOT` and `SL607_TOT` are collected by the scheduler and then silently dropped.** Drive both from the registry. Delete `models/create_pg_schema.py` — a dead duplicate that nothing imports. | Every pollable tag reaches `scada_aggregate_values`. |
 | **B9** | **Live monitoring screens.** `LiveMonitor.tsx` (23 hardcoded tags) and `LiveDataTable.tsx` (16) list tags inline. Drive from `scadaConfigApi`. `ScadaContext.tsx` also hardcodes the business-name mapping (`cleaningScale`, `dryWheatScale`, …) mirroring `scada_routes.py:768–782`; move that mapping into the registry's `display_name`. | Adding a tag to the registry makes it appear on the live screens. |
+
+> **Sequencing: A8 and B5 stay independent.** B5 hardens the `.env` path now and does **not** wait on `runtime_config.py`. Once both branches land, one small follow-up PR switches the SAP/MSSQL consumers to read through `runtime_config`. Making B5 depend on A8 would block B entirely and put A into B's files, which is the one thing this split exists to prevent.
 
 > **B5 has an ops half.** The credentials and JWT key are in a public repository's history, so they stay reachable regardless of what the code does. Removing the fallbacks is the code half; rotating them is the ops half and needs whoever owns those accounts.
 
@@ -239,6 +268,10 @@ DELETE /api/classification/rules/:id                                        -> {
 GET    /api/scada-config/tags?category=       -> ScadaTag[]
 POST   /api/scada-config/tags                 <- ScadaTagRequest            -> {success, message}
 DELETE /api/scada-config/tags/:id                                           -> {success, message}
+
+GET    /api/engineering/settings              -> EngineeringSettings (secrets masked)
+PUT    /api/engineering/settings              <- EngineeringSettingsRequest -> {success, message}
+POST   /api/engineering/test-sap              <- optional subset            -> {success, message, detail}
 
 GET    /api/kpi-config/definitions?department= -> KpiDefinition[]
 POST   /api/kpi-config/definitions             <- KpiDefinitionRequest      -> {success, message}
