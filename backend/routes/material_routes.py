@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy import text
 from database import SessionLocal
+from services.classification_service import resolve_order_type  # A1: rules-driven routing
 
 material_bp = Blueprint("material_bp", __name__)
 
@@ -39,24 +40,29 @@ def add_material():
             if not data.get(field):
                 return jsonify({"error": f"Missing required field: {field}"}), 400
         
+        # ✅ A1: was `if '13' in material_code` — a SUBSTRING match, so any code
+        # containing "13" anywhere matched, including inside the zero padding or
+        # mid-code. Everywhere else in the system classifies on the prefix of the
+        # zero-stripped code. Both now go through the same classification_rules
+        # lookup, so they cannot drift apart again.
+        material_code = data.get('material', '')
+        order_type = resolve_order_type(material_code)
+
         # Set default recipe if not provided
         if not data.get('recipe'):
-            # Determine recipe based on material code
-            material_code = data.get('material', '')
-            if '13' in material_code:
+            if order_type == 'MILLING':
                 data['recipe'] = 'Milling Recipe'
-            elif '14' in material_code:
+            elif order_type == 'PACKING':
                 data['recipe'] = 'Packing Recipe'
             else:
                 data['recipe'] = 'Default Recipe'
-        
+
         # Set default packing line for milling materials if not provided or is N/A
         if not data.get('packingLine') or data.get('packingLine') == 'N/A':
-            material_code = data.get('material', '')
-            if '13' in material_code:
+            if order_type == 'MILLING':
                 data['packingLine'] = 'N/A'  # Milling materials don't need packing lines
-            elif '14' in material_code and not data.get('packingLine'):
-                data['packingLine'] = 'PL601'  # Default packing line for packing materials
+            elif order_type == 'PACKING' and not data.get('packingLine'):
+                data['packingLine'] = 'PL601'  # Default packing line — moves to the DB in A6
         
         # Note: Ensure the keys in `data` match the column names exactly.
         insert_query = text("""

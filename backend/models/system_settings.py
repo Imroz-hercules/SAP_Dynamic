@@ -73,6 +73,14 @@ DEFAULT_SETTINGS = {
         "description": "List of active SCADA tags in emulator"
     },
 
+    # Order Routing (A1)
+    "default_plant": {
+        "value": "3130",
+        "value_type": "string",
+        "description": "Plant code assumed for orders that arrive from SAP without one. "
+                       "Used to pick shift rows out of shift_master."
+    },
+
     # Validator Tuning (A5)
     "auto_validator_interval_seconds": {
         "value": "1",

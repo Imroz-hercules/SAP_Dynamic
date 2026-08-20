@@ -112,9 +112,16 @@ def pull_from_sap_once() -> int:
                             mock_order = MockOrder(po)
                             classification = classify_order(mock_order)
                             order_type = classification.get("order_type")
-                            packing_line = classification.get("packing_line")
-                            bag_size = classification.get("bag_size")
-                            
+
+                            # ✅ A1: these were read off the TOP level of the
+                            # classification dict, where classify_order has never
+                            # put them — so both were always None and both columns
+                            # have been NULL for every order ever pulled. They live
+                            # in packing_info, and only for PACKING orders.
+                            packing_info = classification.get("packing_info") or {}
+                            packing_line = packing_info.get("packing_line")
+                            bag_size = packing_info.get("bag_size")
+
                             if order_type:
                                 classified_count += 1
                                 log.info(f"Auto-classified order {po.get('po_number')} as {order_type}")

@@ -5606,6 +5606,7 @@ from services.scale_service import (
 from services.sap_confirmation import SAPConfirmationService
 from services.error_logger import log_order_error
 from services import baseline_guard  # A7: unmapped-tag guard for baselines
+from services.classification_service import resolve_order_type  # A1: rules-driven routing
 from services.auth_service import optional_auth
 from services.system_logger import system_logger
 from services.scale_lock_service import (
@@ -5932,6 +5933,70 @@ def invalidate_auto_validator_interval() -> None:
     """Drop the cached interval so the next cycle re-reads it immediately."""
     with _auto_validator_interval_lock:
         _auto_validator_interval_cache["read_at"] = 0.0
+
+
+# =============================================================================
+# DEFAULT PLANT  (A1)
+# =============================================================================
+# Seven sites did `get_attr_safe(order, "plant", "3130")` — a fallback for orders
+# that arrive from SAP with no plant, passed to get_current_shift/get_next_shift
+# to pick the right row out of shift_master.
+#
+# Note what this is NOT: it is not a plant → department rule. At all seven sites
+# the department comes from order_type, not from the plant:
+#
+#     plant      = get_attr_safe(order, "plant", "3130")
+#     department = "MILLING" if order_type == "MILLING" else "PACKING"
+#
+# and shift_master holds both MILLING and PACKING shifts for plant 3130, so 3130
+# is not "the milling plant" — it is the plant, running two departments.
+# See resolve_department() in services/classification_service.py.
+
+DEFAULT_PLANT_KEY = "default_plant"
+DEFAULT_PLANT_FALLBACK = "3130"
+
+_DEFAULT_PLANT_TTL = 60.0
+_default_plant_cache = {"value": DEFAULT_PLANT_FALLBACK, "read_at": 0.0}
+_default_plant_lock = threading.Lock()
+
+
+def get_default_plant() -> str:
+    """
+    Plant code to assume when an order has none.
+
+    Stored in `system_settings` under `default_plant`. Cached, because this is
+    read on the worker's shift-change check, which runs every cycle.
+
+    Falls back to "3130" — the only plant in shift_master — if the setting is
+    missing or unreadable, so shift resolution keeps working.
+    """
+    now = time.time()
+    with _default_plant_lock:
+        if now - _default_plant_cache["read_at"] < _DEFAULT_PLANT_TTL:
+            return _default_plant_cache["value"]
+
+    value = DEFAULT_PLANT_FALLBACK
+    try:
+        from models.system_settings import get_setting
+        raw = str(get_setting(DEFAULT_PLANT_KEY, DEFAULT_PLANT_FALLBACK) or "").strip()
+        if raw:
+            value = raw
+        else:
+            print(f"⚠️ [plant] {DEFAULT_PLANT_KEY} is empty — using {DEFAULT_PLANT_FALLBACK}")
+    except Exception as exc:
+        print(f"⚠️ [plant] Could not read {DEFAULT_PLANT_KEY} ({exc}) — "
+              f"using {DEFAULT_PLANT_FALLBACK}")
+
+    with _default_plant_lock:
+        _default_plant_cache["value"] = value
+        _default_plant_cache["read_at"] = now
+    return value
+
+
+def invalidate_default_plant() -> None:
+    """Drop the cached default plant so the next read is immediate."""
+    with _default_plant_lock:
+        _default_plant_cache["read_at"] = 0.0
 
 
 # =============================================================================
@@ -6309,14 +6374,17 @@ def classify_order(order) -> Dict[str, Any]:
         result["error"] = f"Invalid material code: {material_code}"
         return result
 
-    prefix = material_stripped[:2]
+    # ✅ A1: was `prefix == "13"` / `"14"` hardcoded here. Now resolved against
+    # the classification_rules table, so a new prefix is a row, not a deploy.
+    result["order_type"] = resolve_order_type(material_code)
 
-    if prefix == "13":
-        result["order_type"] = "MILLING"
-    elif prefix == "14":
-        result["order_type"] = "PACKING"
-    else:
-        result["error"] = f"Unknown material prefix: {prefix}"
+    if not result["order_type"]:
+        result["error"] = (
+            f"No classification rule matches material {material_code} "
+            f"(prefix '{material_stripped[:2]}'). Add a rule under "
+            f"Material Map, or via POST /api/classification/rules."
+        )
+        print(f"❌ [classify_order] {result['error']}")
         return result
 
     # =========================================================
@@ -6409,6 +6477,16 @@ def classify_order(order) -> Dict[str, Any]:
         result["formula"] = ""
 
         result["packing_info"] = {
+            # ✅ A1: packing_line and bag_size added. process_order_pull.py read
+            # them off the TOP level of this dict, where they have never existed,
+            # so process_orders.packing_line and .bag_size have been NULL for
+            # every order ever pulled — and the UI has a "Packing Line:" row that
+            # has always rendered blank. Additive, so the four modules reading
+            # this shape are unaffected.
+            "packing_line": mapping.palletizer,
+            # kg_per_pallet is the weight of ONE bag, despite the name — see the
+            # transposed-columns note in the plan (§6). A2 renames these.
+            "bag_size": str(int(mapping.kg_per_pallet)) if mapping.kg_per_pallet else None,
             "bag_size_kg": float(mapping.bag_size_kg or 0),
             "bags_per_pallet": float(mapping.bags_per_pallet or 0),  # ✅ FIX: Use float, not int
             "kg_per_pallet": float(mapping.kg_per_pallet or 0),
@@ -6708,7 +6786,7 @@ def release_scales_and_start_waiting_orders(po_number: str, order, classificatio
                                             set_attr_safe(promoted_order, "scale3_qty", 0.0)
                                         
                                         # Initialize shift
-                                        plant = get_attr_safe(promoted_order, "plant", "3130")
+                                        plant = get_attr_safe(promoted_order, "plant", None) or get_default_plant()
                                         department = "MILLING" if promoted_classification.get("order_type") == "MILLING" else "PACKING"
                                         shift_row = get_current_shift(plant, department, db)
                                         current_shift = shift_row.shift_code if shift_row else "A"
@@ -7785,7 +7863,7 @@ def end_shift_and_confirm(order, current_shift: str, classification: Dict, sap_s
             if remaining_to_target <= 0:
                 # Already confirmed
                 print(f"✅ Shift {current_shift} fully confirmed")
-                plant = get_attr_safe(order, "plant", "3130")
+                plant = get_attr_safe(order, "plant", None) or get_default_plant()
                 department = "MILLING" if order_type == "MILLING" else "PACKING"
                 with _db_session() as db:
                     next_shift_row = get_next_shift(current_shift, plant, department, db)
@@ -7811,7 +7889,7 @@ def end_shift_and_confirm(order, current_shift: str, classification: Dict, sap_s
         # ✅ Check if there's anything to send
         if confirm_qty <= 0 and not force_final:
             print(f"⚠️ No production to confirm in Shift {current_shift}")
-            plant = get_attr_safe(order, "plant", "3130")
+            plant = get_attr_safe(order, "plant", None) or get_default_plant()
             department = "MILLING" if order_type == "MILLING" else "PACKING"
             with _db_session() as db:
                 next_shift_row = get_next_shift(current_shift, plant, department, db)
@@ -8030,7 +8108,7 @@ def end_shift_and_confirm(order, current_shift: str, classification: Dict, sap_s
                 }
             else:
                 # Get next shift
-                plant = get_attr_safe(order, "plant", "3130")
+                plant = get_attr_safe(order, "plant", None) or get_default_plant()
                 department = "MILLING" if order_type == "MILLING" else "PACKING"
                 
                 with _db_session() as db:
@@ -8355,7 +8433,7 @@ def init_and_start_order_worker(db, order, classification, is_manual_start=False
     print(f"✅ [{po_number}] Main equipment baseline columns set with fresh SCADA values: {baselines}")
 
     # -- Shift and basic order state setup --
-    plant = get_attr_safe(order, "plant", "3130")
+    plant = get_attr_safe(order, "plant", None) or get_default_plant()
     department = "MILLING" if order_type == "MILLING" else "PACKING"
     shift_row = get_current_shift(plant, department, db)
     current_shift = shift_row.shift_code if shift_row else "A"
@@ -9112,7 +9190,7 @@ def auto_validation_worker(po_number: str, classification: Dict):
                     # ------- SHIFT CHANGE LOGIC --------
                     shift_changed = False
                     if order_type in ["MILLING", "PACKING"]:
-                        plant = get_attr_safe(current_order, "plant", "3130")
+                        plant = get_attr_safe(current_order, "plant", None) or get_default_plant()
                         department = "MILLING" if order_type == "MILLING" else "PACKING"
                         shift_row = get_current_shift(plant, department, db)
                         realtime_shift = shift_row.shift_code if shift_row else "A"
@@ -10701,7 +10779,7 @@ def start_order(po_number: str):
             baselines.setdefault(tag, 0.0)
 
         # Initialize shift
-        plant = get_attr_safe(order, "plant", "3130")
+        plant = get_attr_safe(order, "plant", None) or get_default_plant()
         department = "MILLING" if order_type_new == "MILLING" else "PACKING"
         shift_row = get_current_shift(plant, department, db)
         current_shift = shift_row.shift_code if shift_row else "A"
