@@ -1,6 +1,6 @@
 # Static to Dynamic — Migration Plan
 
-Removing hardcoded plant configuration from Hercules SFMS. Two parallel workstreams with no shared files, no shared functions, and no merge order between them.
+Removing hardcoded plant configuration from Hercules SFMS. Two workstreams, run **sequentially — A first, then B** (agreed 20 Aug 2026). File ownership is still exclusive; see §2 for why it still matters even without parallel work.
 
 | | |
 |---|---|
@@ -69,9 +69,27 @@ PL/SL tags are different: their baselines come from `scale1_qty` / `scale2_qty` 
 
 ## 2. Ground rules
 
-### File ownership is exclusive
+### Execution order
 
-Each file belongs to exactly one workstream for the duration. If you need a change in a file you don't own, ask rather than edit.
+**A runs to completion, then B starts.** That removes the merge-conflict risk the
+original split was built around, but three things still matter:
+
+1. **File ownership still holds.** B's task list cites exact line numbers in
+   files A does not own. If A edits them anyway, B's plan goes stale before B
+   has read it. Stay in your own files; if a task genuinely needs a change
+   outside them, record it in the handover.
+2. **`backend/app.py` is the known exception.** A8 registers the Engineering
+   blueprint there, which shifts B5's cited `app.py:472` (CORS). **B must
+   re-verify every line number before starting** — the two plans were written
+   against the tree at commit 0.
+3. **The frozen interfaces are still binding.** They now protect B's future
+   work rather than B's concurrent work, which is a weaker guarantee but the
+   same rule: don't change the shape, only what's behind it.
+
+### File ownership
+
+Each file belongs to exactly one workstream. If you need a change in a file you
+don't own, note it rather than making it silently.
 
 | Workstream A only | Workstream B only |
 |---|---|
@@ -190,13 +208,13 @@ Delivers capabilities **7** and **8**, and finishes **9**.
 | **B2** | **Rollover and range limits per tag.** `PALLETIZER_MAX = 100000` (`scale_service.py:1107`, also `:1595`) and `LO_MAX = 1000000` (`embedded_emulator.py:425`) become registry columns. | Changing a rollover value changes delta maths without a deploy. |
 | **B3** | **Close the counter gap.** The five `SL60x_COUNTER` tags are seeded **inactive**. They exist in `ASMArchive_DB5` and `process_orders` has matching `baseline_sl60x_counter` columns, but they are absent from `ALLOWED_SCADA_FIELDS`, so reads return `None` — while `app_scheduler.SCADA_KEYS` polls `SL601_COUNTER` anyway. Verify against `Book1.xlsx`, then activate or record why not. **Do not activate before A7 lands.** | Either the counters read real values, or a comment records the reason they stay off. |
 | **B4** | **KPI definitions.** Implement CRUD behind `/api/kpi-config/definitions`; read ceilings and display-name maps from `kpi_config`. Nameplate reads `system_settings.mill_nameplate_tph`. Replaces `nameplate_tph = 25.0` (`kpi_routes.py:262`, repeated `:328`), the nine `min(...)` ceilings (`:272–:383`), `MILLING_MAP` / `PACKING_MAP` (`kpi_store_flat.py:6`, `:20`), and the `plant = "3130"` defaults (`:858`, `:1145`). Resolve the documented-vs-applied difference first — §6. | Changing a ceiling changes the reported KPI on the next refresh. |
-| **B5** | **Finish the config hardening.** *(Independent of A8 — see sequencing note.)* `e6cf018` added the plumbing; every secret still survives as the fallback default, so the repo still carries them. Drop the literals, fail fast on a missing required variable, scrub the header comment in `setup_sap_postgres.sql`. Then `CORS_ALLOWED_ORIGINS` (`app.py:472`), `SOURCE_TABLE` and the poll intervals (`app_scheduler.py:280–281`). | Starting with no `.env` fails with a named-variable error, not a silent connection to production. |
+| **B5** | **Finish the config hardening + consume `runtime_config`.** *(A8 has already landed by the time B starts.)* `e6cf018` added the plumbing; every secret still survives as the fallback default, so the repo still carries them. Drop the literals, fail fast on a missing required variable, scrub the header comment in `setup_sap_postgres.sql`. Then `CORS_ALLOWED_ORIGINS` (`app.py:472`), `SOURCE_TABLE` and the poll intervals (`app_scheduler.py:280–281`). | Starting with no `.env` fails with a named-variable error, not a silent connection to production. |
 | **B6** | **Admin shifts fallback.** The shifts tab **already does full CRUD** against `/api/shifts` — do not rebuild it. `SHIFT_SCHEDULES` (`Admin.tsx:144`) is only the `useState` initial value (`:453`), so a failed or empty fetch silently shows hardcoded times that disagree with the seed. Remove the fallback, show a real empty/error state. Same for `SHIFT_OPTIONS` (`TimeFilter.tsx:34`). | With the API down, the screen says so instead of showing plausible wrong times. |
 | **B7** | **Screens read the registry.** `KpiCalculations.tsx` and `ScadaReadings.tsx` take their tag and limit lists from the new endpoints. `KpiCalculations.tsx:914–929` also displays **fabricated fallback numbers** (`100.00`, `36.42`, `66.92`, `13.41`, `19.67`, `12.01`…) when `kpiData` is null — an operator cannot tell those from real readings. Replace with an explicit no-data state. | No screen ever shows a number that isn't measured. |
 | **B8** | **SCADA persistence path.** `scada_persist.py` hardcodes 14 tags in both the `INSERT` and the params dict, and `create_scada_table.py` hardcodes the same 14 `VALUE_*` columns. **`PL602_TOT`, `PL603_TOT`, `SL606_TOT` and `SL607_TOT` are collected by the scheduler and then silently dropped.** Drive both from the registry. Delete `models/create_pg_schema.py` — a dead duplicate that nothing imports. | Every pollable tag reaches `scada_aggregate_values`. |
 | **B9** | **Live monitoring screens.** `LiveMonitor.tsx` (23 hardcoded tags) and `LiveDataTable.tsx` (16) list tags inline. Drive from `scadaConfigApi`. `ScadaContext.tsx` also hardcodes the business-name mapping (`cleaningScale`, `dryWheatScale`, …) mirroring `scada_routes.py:768–782`; move that mapping into the registry's `display_name`. | Adding a tag to the registry makes it appear on the live screens. |
 
-> **Sequencing: A8 and B5 stay independent.** B5 hardens the `.env` path now and does **not** wait on `runtime_config.py`. Once both branches land, one small follow-up PR switches the SAP/MSSQL consumers to read through `runtime_config`. Making B5 depend on A8 would block B entirely and put A into B's files, which is the one thing this split exists to prevent.
+> **Sequencing note.** Because A completes before B starts, B5 can consume `runtime_config.py` directly — A8 will already have landed. The earlier workaround (B5 hardening `.env` independently, with a follow-up PR to switch consumers) is no longer needed; fold it into B5.
 
 > **B5 has an ops half.** The credentials and JWT key are in a public repository's history, so they stay reachable regardless of what the code does. Removing the fallbacks is the code half; rotating them is the ops half and needs whoever owns those accounts.
 
@@ -336,6 +354,7 @@ TypeScript interfaces for all three are in `lib/api.ts`. POST is upsert — incl
 ## 10. Done means
 
 - No literal listed above survives in source — `grep` for each returns only migration seed data and tests.
+- **A hands over to B with:** a re-verified line-number pass over B's cited files, a note of anything A changed outside its own file set, and the app starting clean (see the smoke test in the local setup notes).
 - Every capability in §1 marked ❌ or ⚠️ is editable from a screen, and takes effect without a restart.
 - A fresh database seeded from `setup_sap_postgres.sql` produces the same classification, the same shift weights and the same KPI numbers as production does today — except where §6 records a deliberate decision to differ.
 - No screen displays a number that isn't measured.
