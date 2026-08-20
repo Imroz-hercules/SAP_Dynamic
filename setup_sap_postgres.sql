@@ -530,4 +530,149 @@ WHERE NOT EXISTS (
     WHERE s.plant = v.plant AND s.department = v.department AND s.shift_code = v.shift_code
 );
 
+-- =============================================================================
+-- DYNAMIC CONFIGURATION TABLES (added in commit 0)
+--
+-- Table ownership is exclusive - see backend/CONTRACTS.md:
+--   classification_rules -> Workstream A
+--   scada_tags           -> Workstream B
+--   kpi_config           -> Workstream B
+--
+-- Schemas are fixed here so neither branch has to edit this file again.
+-- Further changes to YOUR table go in your own backend/migrate_*.py;
+-- this file is reconciled once, at the end, in a single cleanup PR.
+-- =============================================================================
+
+-- ---------------------------------------------------------------- Workstream A
+CREATE TABLE IF NOT EXISTS classification_rules (
+    id           SERIAL PRIMARY KEY,
+    rule_type    VARCHAR(32)  NOT NULL,           -- 'material_prefix' | 'plant_department'
+    match_value  VARCHAR(32)  NOT NULL,           -- '13', '14', '3130', or '*'
+    result_value VARCHAR(32)  NOT NULL,           -- 'MILLING' | 'PACKING'
+    priority     INTEGER      NOT NULL DEFAULT 100,
+    is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
+    description  VARCHAR(255),
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_classification_rule UNIQUE (rule_type, match_value)
+);
+CREATE INDEX IF NOT EXISTS idx_classification_rule_lookup
+    ON classification_rules (rule_type, is_active, priority);
+
+-- Seeded from the current hardcoded behaviour, so a fresh DB matches production.
+INSERT INTO classification_rules (rule_type, match_value, result_value, priority, description)
+VALUES
+  ('material_prefix',   '13',   'MILLING', 10, 'order_validation.py:6247'),
+  ('material_prefix',   '14',   'PACKING', 10, 'order_validation.py:6249'),
+  ('plant_department',  '3130', 'MILLING', 10, 'plant 3130 is the mill'),
+  ('plant_department',  '*',    'PACKING', 99, 'catch-all: any other plant is packing')
+ON CONFLICT (rule_type, match_value) DO NOTHING;
+
+-- ---------------------------------------------------------------- Workstream B
+CREATE TABLE IF NOT EXISTS scada_tags (
+    id            SERIAL PRIMARY KEY,
+    tag           VARCHAR(50)  NOT NULL UNIQUE,   -- 'WG501', 'PL601_TOT'
+    category      VARCHAR(20)  NOT NULL,          -- INPUT|MILLING|WATER|PACKING|DAMAGED
+    reading_type  VARCHAR(20)  NOT NULL,          -- hi_lo | single | average
+    source_column VARCHAR(64),                    -- exact ASMArchive_DB5 column
+    rollover_max  NUMERIC(18,3),                  -- counter wrap point, NULL = none
+    unit          VARCHAR(16),
+    is_pollable   BOOLEAN      NOT NULL DEFAULT TRUE,
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    emulator_seed NUMERIC(18,3) DEFAULT 0,
+    display_name  VARCHAR(100),
+    sort_order    INTEGER      NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_scada_tag_category ON scada_tags (category, is_active);
+CREATE INDEX IF NOT EXISTS idx_scada_tag_pollable ON scada_tags (is_pollable, is_active);
+
+-- Seeded from ALLOWED_SCADA_FIELDS in services/scale_service.py:768.
+-- emulator_seed is left at 0; populate from REALISTIC_STARTING_VALUES in B1.
+INSERT INTO scada_tags (tag, category, reading_type, source_column, rollover_max, unit, is_active, sort_order, display_name)
+VALUES
+  ('WG101','INPUT','hi_lo','WG101',1000000,'TON',TRUE,10,'Wheat input - Silo 1'),
+  ('WG201','INPUT','hi_lo','WG201',1000000,'TON',TRUE,11,'Wheat input - Silo 2'),
+  ('WG202','INPUT','hi_lo','WG202',1000000,'TON',TRUE,12,'Clean wheat - active scale'),
+  ('WG301','INPUT','hi_lo','WG301',1000000,'TON',TRUE,13,'Milling screenings'),
+  ('WG302','INPUT','hi_lo','WG302',1000000,'TON',TRUE,14,'Pre-clean screenings'),
+  ('WG501','MILLING','hi_lo','WG501',1000000,'TON',TRUE,20,'Bakery flour stream'),
+  ('WG502','MILLING','hi_lo','WG502',1000000,'TON',TRUE,21,'Cake / IWW flour stream'),
+  ('WG503','MILLING','hi_lo','WG503',1000000,'TON',TRUE,22,'Bran stream'),
+  ('DM101','WATER','average','DM101',NULL,'m3',TRUE,30,'Water meter 1'),
+  ('DM102','WATER','average','DM102',NULL,'m3',TRUE,31,'Water meter 2'),
+  ('DM201','WATER','average','DM201',NULL,'m3',TRUE,32,'Water meter 3'),
+  ('DM202','WATER','average','DM202',NULL,'m3',TRUE,33,'Water meter 4'),
+  ('DM203','WATER','average','DM203',NULL,'m3',TRUE,34,'Water meter 5'),
+  ('PL601_TOT','PACKING','single','PL601_TOT',100000,'PALLET',TRUE,40,'Palletizer 1'),
+  ('PL602_TOT','PACKING','single','PL602_TOT',100000,'PALLET',TRUE,41,'Palletizer 2'),
+  ('PL603_TOT','PACKING','single','PL603_TOT',100000,'PALLET',TRUE,42,'Palletizer 3 - bran'),
+  ('SL606_TOT','PACKING','single','SL606_TOT',100000,'PALLET',TRUE,43,'Line 6 - 1 KG'),
+  ('SL607_TOT','PACKING','single','SL607_TOT',100000,'PALLET',TRUE,44,'Line 7 - 10 KG'),
+  ('SL601_DAMAGED','DAMAGED','single','SL601_DAMAGED',NULL,'BAG',TRUE,50,'Line 1 damaged bags'),
+  ('SL602_DAMAGED','DAMAGED','single','SL602_DAMAGED',NULL,'BAG',TRUE,51,'Line 2 damaged bags'),
+  ('SL603_DAMAGED','DAMAGED','single','SL603_DAMAGED',NULL,'BAG',TRUE,52,'Line 3 damaged bags'),
+  ('SL606_DAMAGED','DAMAGED','single','SL606_DAMAGED',NULL,'BAG',TRUE,53,'Line 6 damaged bags'),
+  ('SL607_DAMAGED','DAMAGED','single','SL607_DAMAGED',NULL,'BAG',TRUE,54,'Line 7 damaged bags'),
+  ('SL601_COUNTER','PACKING','single','SL601_COUNTER',100000,'BAG',FALSE,60,'Line 1 bag counter'),
+  ('SL602_COUNTER','PACKING','single','SL602_COUNTER',100000,'BAG',FALSE,61,'Line 2 bag counter'),
+  ('SL603_COUNTER','PACKING','single','SL603_COUNTER',100000,'BAG',FALSE,62,'Line 3 bag counter'),
+  ('SL606_COUNTER','PACKING','single','SL606_COUNTER',100000,'BAG',FALSE,63,'Line 6 bag counter'),
+  ('SL607_COUNTER','PACKING','single','SL607_COUNTER',100000,'BAG',FALSE,64,'Line 7 bag counter')
+ON CONFLICT (tag) DO NOTHING;
+-- The five *_COUNTER rows above are seeded INACTIVE on purpose. They exist in
+-- ASMArchive_DB5 (see Book1.xlsx) and process_orders has matching
+-- baseline_sl60x_counter columns, but they are absent from ALLOWED_SCADA_FIELDS
+-- today, so reads return NULL. Verify against real data in B3, then flip
+-- is_active rather than assuming they work.
+
+-- ---------------------------------------------------------------- Workstream B
+CREATE TABLE IF NOT EXISTS kpi_config (
+    id            SERIAL PRIMARY KEY,
+    kpi_key       VARCHAR(64)  NOT NULL UNIQUE,
+    display_name  VARCHAR(128) NOT NULL,
+    department    VARCHAR(20)  NOT NULL,          -- MILLING | PACKING
+    target_column VARCHAR(64),                    -- column in *_kpi_snapshots
+    max_value     NUMERIC(18,3),                  -- result ceiling, NULL = uncapped
+    unit          VARCHAR(16),
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    sort_order    INTEGER      NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_kpi_config_dept ON kpi_config (department, is_active);
+
+-- Seeded with the ceilings currently applied in routes/kpi_routes.py:272-383.
+-- NOTE: generate_kpi_doc.py documents 150 for mill_throughput and
+-- max_utilization_milling_capacity. Code says 100. Resolve in B4 before
+-- relying on these values.
+INSERT INTO kpi_config (kpi_key, display_name, department, target_column, max_value, unit, sort_order)
+VALUES
+  ('mill_throughput_pct','Mill Throughput (%)','MILLING','mill_throughput_pct',100,'%',10),
+  ('mill_time_efficiency_pct','Mill Time Efficiency (%)','MILLING','mill_time_efficiency_pct',100,'%',11),
+  ('total_utilization_pct','Total Utilization (%)','MILLING','total_utilization_pct',100,'%',12),
+  ('milling_gain_pct','Milling Gain (%)','MILLING','milling_gain_pct',120,'%',13),
+  ('milling_screening_pct','Milling Screening (%)','MILLING','milling_screening_pct',20,'%',14),
+  ('flour_extraction_pct','Flour Extraction (%)','MILLING','flour_extraction_pct',85,'%',15),
+  ('bran_extraction_pct','Bran Extraction (%)','MILLING','bran_extraction_pct',25,'%',16),
+  ('milling_loss_pct','Milling Loss (%)','MILLING','milling_loss_pct',NULL,'%',17),
+  ('water_consumption_m3','Water Consumption (m3)','MILLING','water_consumption_m3',NULL,'m3',18),
+  ('milling_net_hours_hrs','Net Hours (hrs)','MILLING','net_hours_hrs',NULL,'hrs',19),
+  ('milling_downtime_hrs','Downtime (hrs)','MILLING','downtime_hrs',NULL,'hrs',20),
+  ('max_utilization_milling_capacity_pct','Max Utilization of Milling Capacity (%)','MILLING',NULL,100,'%',21),
+  ('pre_cleaning_screening_pct','Pre Cleaning Screening (%)','MILLING',NULL,20,'%',22),
+  ('first_break_capacity_tph','1st Break Capacity per Hour (t/h)','MILLING',NULL,30,'t/h',23),
+  ('packing_line_capacity_bags_hr','Packing Line Capacity (bags/hr)','PACKING','packing_line_capacity_bags_hr',2000,'bags/hr',30),
+  ('daily_packing_output_bags','Daily Packing Output (bags)','PACKING','daily_packing_output_bags',100000,'bags',31),
+  ('machine_utilization_pct','Machine Utilization (%)','PACKING','machine_utilization_pct',100,'%',32),
+  ('packing_net_hours_hrs','Net Hours (hrs)','PACKING','net_hours_hrs',NULL,'hrs',33),
+  ('packing_downtime_hrs','Downtime (hrs)','PACKING','downtime_hrs',NULL,'hrs',34)
+ON CONFLICT (kpi_key) DO NOTHING;
+
+-- Plant constant, not a per-KPI value: routes/kpi_routes.py:262 and :328.
+INSERT INTO system_settings (key, value, value_type, description)
+VALUES ('mill_nameplate_tph', '25', 'float', 'Mill nameplate capacity in tons/hour')
+ON CONFLICT (key) DO NOTHING;
+
 COMMIT;
