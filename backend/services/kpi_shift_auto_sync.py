@@ -29,10 +29,10 @@ log = logging.getLogger("kpi_shift_auto_sync")
 
 # SAP Configuration
 # ✅ Read mock mode from database settings (not environment variable)
-MOCK_BASE_URL = "http://localhost:6000/mock"
-PRODUCTION_BASE_URL = "https://vhmioqs4ci.sap.mc3.com.sa:44300"
-SAP_USERNAME = "99999"
-SAP_PASSWORD = "P@ssw0rdP@ssw0rd"
+MOCK_BASE_URL = os.getenv("SAP_MOCK_URL", "http://localhost:6000/mock")
+PRODUCTION_BASE_URL = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
+SAP_USERNAME = os.getenv("SAP_USERNAME", "99999")
+SAP_PASSWORD = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
 
 def get_mock_sap_mode() -> bool:
     """Get mock SAP mode from database settings."""

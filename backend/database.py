@@ -1,7 +1,13 @@
 # database.py
+import os
+import logging
+from pathlib import Path
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-import logging
+
+# Load backend/.env so scripts and Flask both pick up DB URLs
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 log = logging.getLogger("database")
 
@@ -24,16 +30,21 @@ EMBEDDED_EMULATOR_URL = "/api/emulator/latest"
 
 # =============================================================================
 
-# SQL Server (already used by your API)
-mssql_connection_string = (
+# SQL Server (SCADA read-only). Override with MSSQL_URL in backend/.env
+mssql_connection_string = os.getenv(
+    "MSSQL_URL",
     "mssql+pyodbc://Hercules:nl6oUpr@localhost/HerculesV2"
-    "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+    "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes",
 )
 engine = create_engine(mssql_connection_string)  # <-- MSSQL engine (kept for routes)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
-# NEW: PostgreSQL
-postgres_engine = create_engine("postgresql+psycopg2://postgres:Hercules@localhost:5432/sap")
+# PostgreSQL (app CRUD). Override with POSTGRES_URL in backend/.env
+postgres_url = os.getenv(
+    "POSTGRES_URL",
+    "postgresql+psycopg2://postgres:Hercules@localhost:5432/sap",
+)
+postgres_engine = create_engine(postgres_url)
 PostgresSessionLocal = sessionmaker(bind=postgres_engine, autocommit=False, autoflush=False)
 
 # Base for PostgreSQL models

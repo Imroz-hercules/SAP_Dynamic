@@ -1,4 +1,5 @@
 # services/sap_real_client.py
+import os
 import requests
 import logging
 from typing import List, Dict, Optional
@@ -13,12 +14,12 @@ try:
 except ImportError:
     # Fallback configuration if config module is not available
     SAP_CONFIG = {
-        "base_url": "http://vhmioqs4ci.sap.mc3.com.sa:8000",
-        "endpoint": "/zmi_get_orders/GETORD",
-        "username": "99999",
-        "password": "P@ssw0rdP@ssw0rd",
-        "client": "250",
-        "timeout": 30,
+        "base_url": os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300"),
+        "endpoint": os.getenv("SAP_ENDPOINT", "/zmi_get_orders/GETORD"),
+        "username": os.getenv("SAP_USERNAME", "99999"),
+        "password": os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd"),
+        "client": os.getenv("SAP_CLIENT", "250"),
+        "timeout": int(os.getenv("SAP_TIMEOUT", "30")),
         "max_retries": 3,
     }
     

@@ -3,6 +3,7 @@
 Authentication and authorization service for role-based access control
 """
 
+import os
 import jwt
 import bcrypt
 from datetime import datetime, timedelta
@@ -16,8 +17,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# JWT Secret (in production, use environment variable)
-JWT_SECRET = "hercules_sfms_secret_key_2024"
+JWT_SECRET = os.getenv("JWT_SECRET", "hercules_sfms_secret_key_2024")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 

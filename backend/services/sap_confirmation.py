@@ -1,4 +1,5 @@
 # services/sap_confirmation.py
+import os
 import requests
 import logging
 import csv
@@ -25,20 +26,12 @@ class SAPConfirmationService:
     """
     
     def __init__(self):
-        # PRODUCTION SAP
-        self.base_url = "https://vhmioqs4ci.sap.mc3.com.sa:44300"  # Use HTTPS port 44300
-        
-        # DEMO/MOCK SAP SERVER (for testing)
-        self.mock_base_url = "http://localhost:6000/mock"
-        
-        # ✅ Mock mode is now read from database settings (not environment variable)
-        # This allows changing mode via the Admin settings page
-        # The mock_mode property will read from database each time it's accessed
-        
-        self.username = "99999"
-        self.password = "P@ssw0rdP@ssw0rd"
-        self.client = "250"
-        self.timeout = 30
+        self.base_url = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
+        self.mock_base_url = os.getenv("SAP_MOCK_URL", "http://localhost:6000/mock")
+        self.username = os.getenv("SAP_USERNAME", "99999")
+        self.password = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
+        self.client = os.getenv("SAP_CLIENT", "250")
+        self.timeout = int(os.getenv("SAP_TIMEOUT", "30"))
         
         # Setup session with retry strategy
         self.session = requests.Session()

@@ -301,12 +301,15 @@
 # backend/app.py
 import sys
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
 from sqlalchemy import text
 
-# Ensure backend/ is in sys.path
+# Ensure backend/ is in sys.path and load .env before any DB/SAP imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 # --- Blueprints (API routes) ---
 from routes.kpi_routes import kpi_bp

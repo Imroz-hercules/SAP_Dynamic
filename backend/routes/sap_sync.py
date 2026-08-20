@@ -318,9 +318,15 @@ from services.auto_validator import _convert_to_tons
 from services.sap_real_client import SAPRealClient
 from services.system_logger import system_logger, log_sap_event, log_hercules_event
 from services.auth_service import optional_auth, get_allowed_order_types
+import os
 import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, date
+
+SAP_USERNAME = os.getenv("SAP_USERNAME", "99999")
+SAP_PASSWORD = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
+SAP_BASE_URL = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
+SAP_CLIENT = os.getenv("SAP_CLIENT", "250")
 
 # DB session
 PostgresSessionLocal = sessionmaker(
@@ -400,8 +406,8 @@ def seed_orders():
                 from requests.auth import HTTPBasicAuth
 
                 # ✅ CORRECT: Use HTTPS:44300 instead of HTTP:8000
-                url = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_get_orders/GETORD"
-                params = {"sap-client": "250"}
+                url = f"{SAP_BASE_URL}/zmi_get_orders/GETORD"
+                params = {"sap-client": SAP_CLIENT}
                 
                 print(f"🔗 Calling SAP API: {url}")
                 print(f"🔍 Parameters: {params}")
@@ -409,7 +415,7 @@ def seed_orders():
                 response = requests.get(
                     url,
                     params=params,
-                    auth=HTTPBasicAuth("99999", "P@ssw0rdP@ssw0rd"),
+                    auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
                     timeout=30,
                     headers={
                         "Accept": "application/json",
@@ -1026,7 +1032,7 @@ def send_raw_data_to_sap():
         
         try:
             # SAP API endpoint for sending raw data (updated endpoint)
-            sap_url = "http://vhmioqs4ci.sap.mc3.com.sa:8000/zmi_raw_hercl/HERC"
+            sap_url = f"{SAP_BASE_URL}/zmi_raw_hercl/HERC"
             
             # Prepare payload for SAP - send raw data directly
             sap_payload = raw_data  # Send the raw data directly as the payload
@@ -1040,8 +1046,8 @@ def send_raw_data_to_sap():
             response = requests.post(
                 sap_url,
                 json=sap_payload,
-                params={"sap-client": "200","spnego": "disabled"},  # Add sap-client parameter
-                auth=HTTPBasicAuth("99999", "P@ssw0rdP@ssw0rd"),
+                params={"sap-client": SAP_CLIENT, "spnego": "disabled"},
+                auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
                 timeout=60,  # Longer timeout for large data
                 headers={
                     "Content-Type": "application/json",

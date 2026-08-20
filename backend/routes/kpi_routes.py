@@ -52,10 +52,10 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # ✅ Mock mode is now read from database settings (not environment variable)
 # This allows changing mode via the Admin settings page
-MOCK_BASE_URL = "http://localhost:6000/mock"
-PRODUCTION_BASE_URL = "https://vhmioqs4ci.sap.mc3.com.sa:44300"
-SAP_USERNAME = "99999"
-SAP_PASSWORD = "P@ssw0rdP@ssw0rd"
+MOCK_BASE_URL = os.getenv("SAP_MOCK_URL", "http://localhost:6000/mock")
+PRODUCTION_BASE_URL = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
+SAP_USERNAME = os.getenv("SAP_USERNAME", "99999")
+SAP_PASSWORD = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
 
 def get_mock_sap_mode() -> bool:
     """
@@ -70,17 +70,19 @@ def get_mock_sap_mode() -> bool:
         logger.warning(f"⚠️ Could not read mock SAP mode from database: {e}, defaulting to True (mock mode)")
         return True  # Default to mock mode for safety
 
-def get_sap_url(endpoint: str, client: str = "250") -> str:
+def get_sap_url(endpoint: str, client: str = None) -> str:
     """
     Get the full SAP URL for an endpoint, choosing between mock and production.
     
     Args:
         endpoint: The endpoint path (e.g., '/zmi_kpi_mill/MKPI')
-        client: SAP client number (default: "200")
+        client: SAP client number (default from SAP_CLIENT env)
         
     Returns:
         Full URL string
     """
+    if client is None:
+        client = os.getenv("SAP_CLIENT", "250")
     if get_mock_sap_mode():
         # Mock server endpoints match real SAP paths (with /mock prefix)
         return f"{MOCK_BASE_URL}{endpoint}"
@@ -2136,10 +2138,6 @@ def send_to_sap_kpi(url, payload, kpi_type):
     """
     Send KPI data to SAP endpoint with proper CSRF token authentication.
     """
-    # SAP Credentials
-    SAP_USERNAME = "99999"
-    SAP_PASSWORD = "P@ssw0rdP@ssw0rd"
-    
     try:
         logger.info(f"=== Starting {kpi_type} KPI Send Process ===")
         
@@ -3060,10 +3058,8 @@ def send_all_kpis_to_sap():
         # Step 6: SAP endpoint configuration (HTTPS)
         # milling_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_mill/MKPI?sap-client=200"
         # packing_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_pack/PKPI?sap-client=200"
-        milling_endpoint = get_sap_url("/zmi_kpi_mill/MKPI", client="250")
-        packing_endpoint = get_sap_url("/zmi_kpi_pack/PKPI", client="250")
-        SAP_USERNAME = "99999"
-        SAP_PASSWORD = "P@ssw0rdP@ssw0rd"
+        milling_endpoint = get_sap_url("/zmi_kpi_mill/MKPI")
+        packing_endpoint = get_sap_url("/zmi_kpi_pack/PKPI")
         
         logger.info(f"SAP endpoints configured (HTTPS):")
         logger.info(f"  Milling: {milling_endpoint}")
@@ -3291,7 +3287,7 @@ def test_sap_connection():
         try:
             response = requests.get(
                 milling_endpoint,
-                auth=('99999', 'P@ssw0rdP@ssw0rd'),
+                auth=(SAP_USERNAME, SAP_PASSWORD),
                 timeout=10,
                 verify=False
             )
@@ -3305,7 +3301,7 @@ def test_sap_connection():
         try:
             response = requests.get(
                 packing_endpoint,
-                auth=('99999', 'P@ssw0rdP@ssw0rd'),
+                auth=(SAP_USERNAME, SAP_PASSWORD),
                 timeout=10,
                 verify=False
             )

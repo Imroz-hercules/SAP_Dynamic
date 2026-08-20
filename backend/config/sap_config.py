@@ -2,11 +2,11 @@ import os
 
 # SAP Configuration
 SAP_CONFIG = {
-    "base_url": os.getenv("SAP_BASE_URL", "http://vhmioqs4ci.sap.mc3.com.sa:8000"),
+    "base_url": os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300"),
     "endpoint": os.getenv("SAP_ENDPOINT", "/zmi_get_orders/GETORD"),
     "username": os.getenv("SAP_USERNAME", "99999"),
     "password": os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd"),
-    "client": os.getenv("SAP_CLIENT", "200"),
+    "client": os.getenv("SAP_CLIENT", "250"),
     "timeout": int(os.getenv("SAP_TIMEOUT", "30")),
     "max_retries": int(os.getenv("SAP_MAX_RETRIES", "3")),
     "mock_mode": os.getenv("SAP_MOCK_MODE", "true").lower() == "true",
@@ -18,3 +18,11 @@ SAP_CONFIRMATION_ENDPOINTS = {
     "online": "/zmi_conf_online/CONF",
     "offline": "/zmi_conf_offlin/CONFOFF"
 }
+
+
+def get_sap_url():
+    return f"{SAP_CONFIG['base_url']}{SAP_CONFIG['endpoint']}"
+
+
+def get_sap_auth():
+    return SAP_CONFIG["username"], SAP_CONFIG["password"]
