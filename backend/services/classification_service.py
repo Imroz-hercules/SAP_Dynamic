@@ -5,14 +5,19 @@ Canonical order classification - Workstream A.
 This module becomes the single source of truth for "which physical scales does
 this order read, and with what formula?".
 
-Today that question has three different answers:
-  1. routes/order_validation.py  classify_order()          - reads the DB   (live)
-  2. services/shift_live_update.py MILLING_PV_SPECS:12     - hardcoded      (live, every 60s)
-  3. services/auto_validator.py  MILLING_PV_MAPPING:60     - hardcoded      (unreachable)
+It had three different answers:
+  1. routes/order_validation.py  classify_order()          - read the DB     (live)
+  2. services/shift_live_update.py MILLING_PV_SPECS:12     - hardcoded       (live, every 60s)
+  3. services/auto_validator.py  MILLING_PV_MAPPING:60     - hardcoded       (unreachable)
 
-They disagree. See the reconciliation table in the migration plan before
-collapsing them - BRF2 in particular resolves to a different physical scale
-depending on which one you ask.
+(1) and (2) are now the same code path - A3 moved the implementation here and
+A4 pointed the shift updater at it. (3) is Workstream B's to delete.
+
+They did disagree, on exactly one version. Of the 15 the first two shared, 13
+matched; BRF1 existed only in the dict and is retired; and BRF2 resolved to a
+DIFFERENT PHYSICAL SCALE depending on which you asked. The database row was the
+wrong one - see migrate_fix_brf2_mapping.py, which carries the evidence and the
+correction.
 
 CONTRACT (see backend/CONTRACTS.md):
   classify_order(order) must keep returning a dict with the keys
@@ -23,8 +28,10 @@ CONTRACT (see backend/CONTRACTS.md):
 STATUS
   A1 (done) - resolve_order_type / resolve_department read `classification_rules`
               instead of hardcoded prefixes.
-  A3 (next) - classify_order's body moves here from routes/order_validation.py
-              and gains a TTL cache keyed on (order_type, version).
+  A3 (done) - classify_order's body moved here from routes/order_validation.py
+              and gained a TTL cache keyed on (order_type, version).
+  A4 (done) - services/shift_live_update.py calls classify_order instead of its
+              own hardcoded map, so both live implementations agree.
 """
 from __future__ import annotations
 
