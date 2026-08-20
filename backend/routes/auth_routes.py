@@ -21,21 +21,11 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 @auth_bp.route("/login", methods=["POST"])
 def login():
     """User login endpoint"""
-    # #region agent log
-    import json, time
-    with open(r'c:\Users\Administrator\Documents\C3381_Sap\C3381_Sap_Git\C3381_Sap\.cursor\debug.log', 'a') as f:
-        f.write(json.dumps({"location":"auth_routes.py:login:entry","message":"Login endpoint called","data":{"origin":request.headers.get('Origin')},"timestamp":int(time.time()*1000),"sessionId":"debug-session","hypothesisId":"E"})+"\n")
-    # #endregion
     try:
         data = request.get_json()
         username = data.get('username')
         password = data.get('password')
-        
-        # #region agent log
-        with open(r'c:\Users\Administrator\Documents\C3381_Sap\C3381_Sap_Git\C3381_Sap\.cursor\debug.log', 'a') as f:
-            f.write(json.dumps({"location":"auth_routes.py:login:credentials","message":"Credentials received","data":{"username":username,"hasPassword":bool(password)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","hypothesisId":"E"})+"\n")
-        # #endregion
-        
+
         if not username or not password:
             return jsonify({'error': 'Username and password are required'}), 400
         
