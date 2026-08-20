@@ -323,10 +323,26 @@ import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, date
 
-SAP_USERNAME = os.getenv("SAP_USERNAME", "99999")
-SAP_PASSWORD = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
-SAP_BASE_URL = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
-SAP_CLIENT = os.getenv("SAP_CLIENT", "250")
+# A8: these were module-level os.getenv() calls with the production credentials
+# as their literal defaults, evaluated once at import. They now resolve per read
+# through services/runtime_config (database -> .env -> documented default).
+from services import runtime_config as _rc
+
+
+def _sap_username():
+    return _rc.sap_username()
+
+
+def _sap_password():
+    return _rc.sap_password()
+
+
+def _sap_base_url():
+    return _rc.sap_base_url()
+
+
+def _sap_client():
+    return _rc.sap_client()
 
 # DB session
 PostgresSessionLocal = sessionmaker(
@@ -406,8 +422,8 @@ def seed_orders():
                 from requests.auth import HTTPBasicAuth
 
                 # ✅ CORRECT: Use HTTPS:44300 instead of HTTP:8000
-                url = f"{SAP_BASE_URL}/zmi_get_orders/GETORD"
-                params = {"sap-client": SAP_CLIENT}
+                url = f"{_sap_base_url()}/zmi_get_orders/GETORD"
+                params = {"sap-client": _sap_client()}
                 
                 print(f"🔗 Calling SAP API: {url}")
                 print(f"🔍 Parameters: {params}")
@@ -415,7 +431,7 @@ def seed_orders():
                 response = requests.get(
                     url,
                     params=params,
-                    auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
+                    auth=HTTPBasicAuth(_sap_username(), _sap_password()),
                     timeout=30,
                     headers={
                         "Accept": "application/json",
@@ -1032,7 +1048,7 @@ def send_raw_data_to_sap():
         
         try:
             # SAP API endpoint for sending raw data (updated endpoint)
-            sap_url = f"{SAP_BASE_URL}/zmi_raw_hercl/HERC"
+            sap_url = f"{_sap_base_url()}/zmi_raw_hercl/HERC"
             
             # Prepare payload for SAP - send raw data directly
             sap_payload = raw_data  # Send the raw data directly as the payload
@@ -1046,8 +1062,8 @@ def send_raw_data_to_sap():
             response = requests.post(
                 sap_url,
                 json=sap_payload,
-                params={"sap-client": SAP_CLIENT, "spnego": "disabled"},
-                auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
+                params={"sap-client": _sap_client(), "spnego": "disabled"},
+                auth=HTTPBasicAuth(_sap_username(), _sap_password()),
                 timeout=60,  # Longer timeout for large data
                 headers={
                     "Content-Type": "application/json",

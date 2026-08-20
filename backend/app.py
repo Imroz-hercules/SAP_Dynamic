@@ -333,6 +333,7 @@ from routes.system_mode_routes import system_mode_bp
 from routes.admin_routes import admin_bp
 # --- Dynamic configuration blueprints (added in commit 0; see backend/CONTRACTS.md) ---
 from routes.classification_routes import classification_bp   # Workstream A
+from routes.engineering_routes import engineering_bp         # Workstream A (A8)
 from routes.scada_config_routes import scada_config_bp       # Workstream B
 from routes.kpi_config_routes import kpi_config_bp           # Workstream B
 from services.sync_scheduler import start_sync_scheduler
@@ -601,6 +602,7 @@ def create_app():
     app.register_blueprint(system_mode_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(classification_bp)   # Workstream A
+    app.register_blueprint(engineering_bp)      # Workstream A (A8)
     app.register_blueprint(scada_config_bp)     # Workstream B
     app.register_blueprint(kpi_config_bp)       # Workstream B
     

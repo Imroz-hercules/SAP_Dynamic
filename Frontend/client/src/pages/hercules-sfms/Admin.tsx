@@ -392,6 +392,17 @@ export function Admin() {
   const [sapIntervalLoading, setSapIntervalLoading] = useState(false)
   const [sapIntervalSaving, setSapIntervalSaving] = useState(false)
   
+  // ⚠️ DEAD as of A8 (20 Aug 2026). This block never reached the backend — the
+  // original comment said so: "Demo - stores locally, will connect to backend
+  // later". The eight state variables below have NO rendered inputs, and
+  // saveSapEndpoints / testSapConnection are never called by any button.
+  //
+  // The real screen is now /engineering (admin only), backed by
+  // GET/PUT /api/engineering/settings and services/runtime_config.py.
+  //
+  // Not deleted here on purpose: Admin.tsx is Workstream B's file for B6, and
+  // removing ~100 lines would shift every line number B6's task list cites.
+  // Delete it with B6, or with the commented-code cleanup PR.
   // SAP Endpoint Configuration (Demo - stores locally, will connect to backend later)
   const [sapBaseUrl, setSapBaseUrl] = useState('https://vhmioqs4ci.sap.mc3.com.sa:44300')
   const [sapClient, setSapClient] = useState('250')

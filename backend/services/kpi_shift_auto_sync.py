@@ -29,10 +29,27 @@ log = logging.getLogger("kpi_shift_auto_sync")
 
 # SAP Configuration
 # ✅ Read mock mode from database settings (not environment variable)
-MOCK_BASE_URL = os.getenv("SAP_MOCK_URL", "http://localhost:6000/mock")
-PRODUCTION_BASE_URL = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
-SAP_USERNAME = os.getenv("SAP_USERNAME", "99999")
-SAP_PASSWORD = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
+# A8: these were module-level os.getenv() calls with the production host and
+# credentials as their literal defaults, evaluated once at import - so nothing
+# short of a restart could change them. They now resolve per read through
+# services/runtime_config (database -> .env -> documented default).
+from services import runtime_config as _rc
+
+
+def _sap_mock_base_url():
+    return _rc.sap_mock_url()
+
+
+def _sap_production_base_url():
+    return _rc.sap_production_url()
+
+
+def _sap_username():
+    return _rc.sap_username()
+
+
+def _sap_password():
+    return _rc.sap_password()
 
 def get_mock_sap_mode() -> bool:
     """Get mock SAP mode from database settings."""
@@ -83,9 +100,9 @@ def _parse_time(time_val):
 def get_sap_url(endpoint: str, client: str = "200") -> str:
     """Get the full SAP URL for an endpoint."""
     if get_mock_sap_mode():
-        return f"{MOCK_BASE_URL}{endpoint}"
+        return f"{_sap_mock_base_url()}{endpoint}"
     else:
-        return f"{PRODUCTION_BASE_URL}{endpoint}?sap-client={client}"
+        return f"{_sap_production_base_url()}{endpoint}?sap-client={client}"
 
 
 def send_milling_kpis_to_sap_internal(shift_code: str = None):
@@ -196,7 +213,7 @@ def send_milling_kpis_to_sap_internal(shift_code: str = None):
         token_response = requests.get(
             SAP_URL,
             headers=get_headers,
-            auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
+            auth=HTTPBasicAuth(_sap_username(), _sap_password()),
             timeout=30,
             verify=False
         )
@@ -228,7 +245,7 @@ def send_milling_kpis_to_sap_internal(shift_code: str = None):
             json=sap_milling_payload,
             headers=post_headers,
             cookies=cookies,
-            auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
+            auth=HTTPBasicAuth(_sap_username(), _sap_password()),
             timeout=30,
             verify=False
         )
@@ -301,7 +318,7 @@ def send_packing_kpis_to_sap_internal(shift_code: str = None):
         token_response = requests.get(
             SAP_URL,
             headers=get_headers,
-            auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
+            auth=HTTPBasicAuth(_sap_username(), _sap_password()),
             timeout=30,
             verify=False
         )
@@ -333,7 +350,7 @@ def send_packing_kpis_to_sap_internal(shift_code: str = None):
             json=sap_packing_payload,
             headers=post_headers,
             cookies=cookies,
-            auth=HTTPBasicAuth(SAP_USERNAME, SAP_PASSWORD),
+            auth=HTTPBasicAuth(_sap_username(), _sap_password()),
             timeout=30,
             verify=False
         )

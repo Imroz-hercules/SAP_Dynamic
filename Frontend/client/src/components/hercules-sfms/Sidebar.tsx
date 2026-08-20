@@ -111,6 +111,13 @@ const menuItems = [
     label: 'User Activity',
     description: 'Operator actions log (Admin Only)'
   },
+  {
+    // A8: plant connection configuration. Previously .env only.
+    path: '/engineering',
+    icon: Settings,
+    label: 'Engineering',
+    description: 'SAP & SQL Server connection (Admin Only)'
+  },
 ]
 
 
@@ -134,7 +141,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   // Filter menu items - hide User Management and User Activity for non-admin users
   // Material Mapping: admin or milling_operator only; Palletizer Mapping: admin or packing_operator only
   const visibleMenuItems = menuItems.filter(item => {
-    if (item.path === '/user-management' || item.path === '/activity-log') {
+    if (item.path === '/user-management' || item.path === '/activity-log'
+        || item.path === '/engineering') {
       return isAdmin
     }
     if (item.path === '/material-map') {

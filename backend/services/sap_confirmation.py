@@ -26,12 +26,15 @@ class SAPConfirmationService:
     """
     
     def __init__(self):
-        self.base_url = os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300")
-        self.mock_base_url = os.getenv("SAP_MOCK_URL", "http://localhost:6000/mock")
-        self.username = os.getenv("SAP_USERNAME", "99999")
-        self.password = os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd")
-        self.client = os.getenv("SAP_CLIENT", "250")
-        self.timeout = int(os.getenv("SAP_TIMEOUT", "30"))
+        # A8: read through runtime_config rather than os.getenv, so a change on
+        # the Engineering page reaches this instance. Note that
+        # sap_confirmation.py:2481 keeps a module-level singleton, which froze
+        # these at import - the properties below make that harmless by
+        # re-resolving on each access.
+        from services import runtime_config as _rc
+
+        self._rc = _rc
+        self.timeout = _rc.sap_timeout()
         
         # Setup session with retry strategy
         self.session = requests.Session()
@@ -66,6 +69,29 @@ class SAPConfirmationService:
             log.info("🔧 PRODUCTION MODE - Using real SAP server")
             log.info("⚠️ VPN checks will be performed - orders will be sent to real SAP or stored offline")
     
+    # A8: these were instance attributes captured in __init__. As properties
+    # they resolve at the moment of use, so the module-level singleton created
+    # at the bottom of this file no longer pins them to import-time values.
+    @property
+    def base_url(self) -> str:
+        return self._rc.sap_production_url()
+
+    @property
+    def mock_base_url(self) -> str:
+        return self._rc.sap_mock_url()
+
+    @property
+    def username(self) -> str:
+        return self._rc.sap_username()
+
+    @property
+    def password(self) -> str:
+        return self._rc.sap_password()
+
+    @property
+    def client(self) -> str:
+        return self._rc.sap_client()
+
     @property
     def mock_mode(self) -> bool:
         """

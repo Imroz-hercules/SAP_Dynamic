@@ -12,22 +12,27 @@ from urllib3.util.retry import Retry
 try:
     from config.sap_config import SAP_CONFIG, get_sap_url, get_sap_auth
 except ImportError:
-    # Fallback configuration if config module is not available
+    # A8: this fallback carried the production host, username and password as
+    # literal defaults - a second copy of the credentials, reached only if
+    # config.sap_config fails to import. It now goes through runtime_config
+    # like everything else, so there is one source and no literals here.
+    from services import runtime_config as _rc
+
     SAP_CONFIG = {
-        "base_url": os.getenv("SAP_BASE_URL", "https://vhmioqs4ci.sap.mc3.com.sa:44300"),
-        "endpoint": os.getenv("SAP_ENDPOINT", "/zmi_get_orders/GETORD"),
-        "username": os.getenv("SAP_USERNAME", "99999"),
-        "password": os.getenv("SAP_PASSWORD", "P@ssw0rdP@ssw0rd"),
-        "client": os.getenv("SAP_CLIENT", "250"),
-        "timeout": int(os.getenv("SAP_TIMEOUT", "30")),
-        "max_retries": 3,
+        "base_url": _rc.sap_base_url(),
+        "endpoint": _rc.sap_endpoint("orders"),
+        "username": _rc.sap_username(),
+        "password": _rc.sap_password(),
+        "client": _rc.sap_client(),
+        "timeout": _rc.sap_timeout(),
+        "max_retries": int(os.getenv("SAP_MAX_RETRIES", "3")),
     }
-    
+
     def get_sap_url():
-        return f"{SAP_CONFIG['base_url']}{SAP_CONFIG['endpoint']}"
-    
+        return f"{_rc.sap_base_url()}{_rc.sap_endpoint('orders')}"
+
     def get_sap_auth():
-        return SAP_CONFIG['username'], SAP_CONFIG['password']
+        return _rc.sap_auth()
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +42,10 @@ class SAPRealClient:
     """
     
     def __init__(self):
+        # A8: SAP_CONFIG is now a live view over runtime_config, so reading it
+        # here resolves current values rather than import-time ones. Kept as
+        # attributes because the rest of this class uses them that way; a
+        # long-lived instance should be re-created after a settings change.
         self.base_url = SAP_CONFIG['base_url']
         self.endpoint = SAP_CONFIG['endpoint']
         self.username, self.password = get_sap_auth()

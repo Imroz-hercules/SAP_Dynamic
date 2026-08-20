@@ -18,6 +18,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 
 
 // New SFMS Pages
+import Engineering from "./pages/hercules-sfms/Engineering";
 import KpiCalculations from "./pages/hercules-sfms/KpiCalculations";
 import LiveMonitor from "./pages/hercules-sfms/LiveMonitor";
 import Logs from "./pages/hercules-sfms/Logs";
@@ -110,6 +111,8 @@ function Router() {
       <Route path="/admin" component={() => <AuthGuard><AdminGuard><Admin /></AdminGuard></AuthGuard>} />
       <Route path="/user-management" component={() => <AuthGuard><AdminGuard><UserManagement /></AdminGuard></AuthGuard>} />
       <Route path="/activity-log" component={() => <AuthGuard><AdminGuard><UserActivityLog /></AdminGuard></AuthGuard>} />
+      {/* A8: plant connection configuration — admin only, it handles credentials */}
+      <Route path="/engineering" component={() => <AuthGuard><AdminGuard><Engineering /></AdminGuard></AuthGuard>} />
       
       {/* Legacy routes redirect to SAP Dashboard */}
       <Route path="/water-system" component={() => { window.location.href = '/sap-dashboard'; return null; }} />
