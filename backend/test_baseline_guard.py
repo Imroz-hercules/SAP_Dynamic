@@ -193,6 +193,50 @@ def test_get_current_production_reports_config_error():
     check("and does not claim completion", completion.get("is_complete") is False, completion)
 
 
+def test_packing_main_tag_is_not_a_byproduct():
+    """
+    Regression, found while building A2.
+
+    PACKING stores its MAIN tag in the scale1 slot. The byproduct check read it
+    with read_baseline_column, which knows nothing about scale slots, so every
+    packing order reported a configuration_error that was not one - the exact
+    false-alarm noise A7 exists to avoid.
+    """
+    print("\nA packing order's main tag is not reported as an unmapped byproduct")
+    from routes.order_validation import get_current_production
+
+    baseline_guard.clear_reported()
+    order = make_order(
+        version="CKL1", material="000000000014000001",
+        scale1="PL601_TOT", scale1_qty=880.0,
+        current_shift="A", baseline_shift_a_start=None,
+    )
+    classification = {
+        "order_type": "PACKING", "equipment": ["PL601_TOT"], "formula": "",
+        "byproduct": {}, "packing_info": {"bags_per_pallet_actual": 32.0}, "error": None,
+    }
+    result = get_current_production(order, classification, use_shift_baselines=False)
+
+    check("no config_error", not result.get("config_error"), result.get("config_error"))
+    check("nothing reported unmapped", result.get("byproduct_unmapped") == [],
+          result.get("byproduct_unmapped"))
+    check("the slot value is used as the baseline",
+          result.get("byproduct_baselines", {}).get("PL601_TOT") == 880.0,
+          result.get("byproduct_baselines"))
+
+    # A genuinely unmapped MILLING byproduct must still be reported.
+    milling = make_order(version="BKF1", scale1="WG999",
+                         current_shift="A", baseline_shift_a_start=None)
+    result = get_current_production(
+        milling,
+        {"order_type": "MILLING", "equipment": ["WG501"], "formula": "WG501",
+         "byproduct": {}, "packing_info": {}, "error": None},
+        use_shift_baselines=False,
+    )
+    check("a real unmapped byproduct still reports",
+          result.get("byproduct_unmapped") == ["WG999"], result.get("byproduct_unmapped"))
+
+
 def test_report_dedupe():
     print("\nReporting is deduped (the worker ticks once a second)")
     baseline_guard.clear_reported()
@@ -221,6 +265,7 @@ def main():
     test_three_cases()
     test_packing_scale_slots()
     test_get_current_production_reports_config_error()
+    test_packing_main_tag_is_not_a_byproduct()
     test_report_dedupe()
 
     print(f"\n{passed} passed, {failed} failed")

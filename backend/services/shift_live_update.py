@@ -63,15 +63,23 @@ def get_equipment_for_order(material: str, version: str, order_type: str) -> tup
         try:
             with postgres_engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT palletizer FROM palletizer_mapping
+                    SELECT palletizer, scada_tag FROM palletizer_mapping
                     WHERE version = :ver LIMIT 1
                 """), {"ver": version}).mappings().first()
-                
+
                 if result:
-                    palletizer = result.palletizer
-                    if palletizer in PL_TO_SCADA:
-                        tag = PL_TO_SCADA[palletizer]
+                    # ✅ A2: read the tag from the row. The local PL_TO_SCADA copy
+                    # below is still used by nothing else and goes in A4 with
+                    # MILLING_PV_SPECS — but leaving this branch on it would mean
+                    # a line added through the screen classified fine and then
+                    # silently produced no shift weight.
+                    tag = result.scada_tag or PL_TO_SCADA.get(result.palletizer)
+                    if tag:
                         return [tag], tag, order_type
+                    log.warning(
+                        "⚠️ Version %s is on line %s, which has no scada_tag - "
+                        "no shift weight will be written", version, result.palletizer
+                    )
         except Exception as e:
             log.error(f"Failed to query palletizer mapping: {e}")
     

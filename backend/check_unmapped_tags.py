@@ -70,23 +70,32 @@ def check_milling_mappings(db, MillingVersionMapping):
                 )
 
 
-def check_packing_mappings(db, PalletizerMapping, PL_TO_SCADA):
+def check_packing_mappings(db, PalletizerMapping):
     """
     Packing tags (PL60x_TOT / SL60x_TOT) have no baseline column by design —
     they are read from the order's scale1 slot, which is set to the tag at order
-    start. So the thing to check is that the palletizer translates to a tag at
-    all; an untranslatable one yields empty equipment.
+    start. So the thing to check is that the line resolves to a tag at all; a
+    row with no scada_tag yields empty equipment.
+
+    A2 moved that tag out of the hardcoded PL_TO_SCADA map and onto the row.
     """
     rows = db.query(PalletizerMapping).all()
     print(f"  palletizer_mapping:       {len(rows)} row(s)")
 
     for row in rows:
-        if row.palletizer not in PL_TO_SCADA:
+        if not row.scada_tag:
             finding(
                 "packing mapping",
                 row.version,
-                f"palletizer '{row.palletizer}' is not in PL_TO_SCADA "
-                f"({', '.join(sorted(PL_TO_SCADA))}) — classification yields no equipment",
+                f"line '{row.palletizer}' has no scada_tag — orders on this "
+                f"version will be rejected at classification",
+            )
+        if not (row.bags_per_pallet_actual or row.bag_size_kg or 0) > 1:
+            finding(
+                "packing mapping",
+                row.version,
+                f"no bags-per-pallet multiplier — the SCADA delta would be "
+                f"confirmed as bags 1:1",
             )
 
 
@@ -143,12 +152,12 @@ def main():
     from models.milling_version_mapping import MillingVersionMapping
     from models.palletizer_mapping import PalletizerMapping
     from models.process_order_pg import ProcessOrderPG
-    from routes.order_validation import classify_order, PL_TO_SCADA
+    from routes.order_validation import classify_order
 
     print("Checking:")
     with PostgresSessionLocal() as db:
         check_milling_mappings(db, MillingVersionMapping)
-        check_packing_mappings(db, PalletizerMapping, PL_TO_SCADA)
+        check_packing_mappings(db, PalletizerMapping)
         check_live_orders(db, ProcessOrderPG, classify_order)
 
     print()

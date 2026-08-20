@@ -5680,82 +5680,52 @@ _last_total_cache_milling = {}
 # SPEC-CONFORMANT CLASSIFICATION MAPPINGS
 # =============================================================================
 
-PL_TO_SCADA = {
-    "PL601": "PL601_TOT",
-    "PL602": "PL602_TOT",
-    "PL603": "PL603_TOT",
-    "PL606": "SL606_TOT",
-    "PL607": "SL607_TOT",
-}
-
-def _is_pl_palletizer(tag: str) -> bool:
-    """
-    Check if a SCADA tag is a PL palletizer (needs conversion) or SL (direct bags).
-    PL palletizers: PL601_TOT, PL602_TOT, PL603_TOT → convert pallets to bags
-    SL equipment: SL606_TOT, SL607_TOT → already in bags, no conversion
-    """
-    tag_upper = str(tag or "").upper()
-    # PL palletizers need conversion
-    return tag_upper in ["PL601_TOT", "PL602_TOT", "PL603_TOT"]
-
-def _get_bags_per_pallet_from_palletizer_type(tag: str) -> float:
-    """
-    Get bags per pallet based on palletizer type (PL601, PL602, etc.)
-    This is used as a fallback when version-specific lookup fails or gives incorrect values.
-    """
-    tag_upper = str(tag or "").upper()
-    
-    # Map palletizer types to standard bags per pallet
-    # PL601 and PL602 typically use 32 bags per pallet
-    if "PL601" in tag_upper:
-        return 32.0
-    elif "PL602" in tag_upper:
-        return 32.0
-    elif "PL603" in tag_upper:
-        # PL603 might be different, check database first, but default to 32
-        return 32.0
-    else:
-        return 1.0  # Unknown palletizer, no conversion
+# ✅ A2: PL_TO_SCADA lived here — a hardcoded palletizer -> SCADA tag map, so a
+# new packing line needed a code change. It is now the `scada_tag` column on
+# palletizer_mapping (migrate_a2_palletizer_mapping.py).
+#
+# Deleted with it:
+#   _is_pl_palletizer                          only used by the fallback below
+#   _get_bags_per_pallet_from_palletizer_type  returned a hardcoded 32.0 for any
+#                                              PL60x tag, which silently papered
+#                                              over a missing or zero multiplier
+#   _translate_pl_to_scada                     one-line wrapper over the map
 
 def _convert_packing_delta_to_bags(tag: str, delta: float, packing_info: Dict) -> float:
     """
-    Convert PACKING delta to bags.
-    - PL palletizers (PL601_TOT, PL602_TOT, PL603_TOT): convert pallets to bags
-    - SL equipment (SL606_TOT, SL607_TOT): also convert using bag_size_kg from version mapping
-    
-    For packing orders: SCADA sends pallet/count, multiply by bag_size_kg from version mapping.
-    Example: 1 pallet × bag_size_kg (32) = 32 bags
+    Convert a PACKING SCADA delta into bags.
+
+    The delta counts pallets (PL60x) or bag groups (SL60x); the multiplier is
+    per-version and comes from palletizer_mapping.
+
+    ✅ A2: reads `bags_per_pallet_actual`, falling back to the legacy
+    `bag_size_kg` — which is the same number under a wrong name, so this keeps
+    every existing row converting exactly as before.
+
+    The old hardcoded 32.0-per-PL60x fallback is gone. It quietly produced a
+    plausible number whenever the mapping was missing or zero, which is the same
+    class of silent-wrong-answer as A7's zero baseline. A multiplier that cannot
+    be resolved now converts 1:1 and says so, rather than inventing 32.
     """
     tag_upper = str(tag or "").upper()
-    
-    # ✅ FIX: Both PL and SL equipment should use bag_size_kg from version mapping
-    # Get from packing_info (which comes from palletizer_mapping table)
-    bags_per_pallet = float(packing_info.get("bags_per_pallet", 0) or 0)
-    bag_size_kg = float(packing_info.get("bag_size_kg", 0) or 0)
-    
-    # ✅ FIX: ALWAYS use bag_size_kg for conversion (priority 1) for both PL and SL
-    # bag_size_kg represents the number of bags per pallet for this version
-    if bag_size_kg > 1:
-        # Use bag_size_kg as the multiplier (pallets × bag_size_kg = bags)
-        conversion_factor = bag_size_kg
-        print(f"🔍 [{tag_upper}] Using bag_size_kg ({bag_size_kg}) as multiplier from version mapping")
-    elif bags_per_pallet > 1:
-        # Fallback to bags_per_pallet if bag_size_kg is invalid
-        conversion_factor = bags_per_pallet
-        print(f"⚠️ [{tag_upper}] bag_size_kg invalid, using bags_per_pallet ({bags_per_pallet}) from database")
-    else:
-        # Final fallback: for PL palletizers, use palletizer standard; for SL, use 1 (no conversion)
-        if _is_pl_palletizer(tag_upper):
-            conversion_factor = _get_bags_per_pallet_from_palletizer_type(tag_upper)
-            print(f"⚠️ [{tag_upper}] Both bag_size_kg and bags_per_pallet invalid, using palletizer standard ({conversion_factor})")
-        else:
-            # SL equipment fallback: if no bag_size_kg, return as-is (assume already in bags)
-            conversion_factor = 1.0
-            print(f"⚠️ [{tag_upper}] No bag_size_kg found, returning delta as-is (assumed already in bags)")
-    
-    result = delta * conversion_factor
-    print(f"🔍 [{tag_upper}] Conversion: delta={delta} × {conversion_factor} = {result} bags")
-    return result
+
+    for key in ("bags_per_pallet_actual", "bag_size_kg", "bags_per_pallet"):
+        try:
+            factor = float(packing_info.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if factor > 1:
+            if key != "bags_per_pallet_actual":
+                print(f"⚠️ [{tag_upper}] bags_per_pallet_actual missing, "
+                      f"falling back to {key} ({factor})")
+            result = delta * factor
+            print(f"🔍 [{tag_upper}] Conversion: delta={delta} × {factor} = {result} bags")
+            return result
+
+    print(f"⚠️ [{tag_upper}] No bags-per-pallet multiplier in the version mapping — "
+          f"treating delta as bags. Set one in Palletizer Mapping.")
+    return delta
+
 
 # =============================================================================
 # MILLING PV SPECS - Version-specific formulas and equipment
@@ -6035,10 +6005,6 @@ def update_last_confirmed_qty(order) -> None:
 # =============================================================================
 # HELPERS
 # =============================================================================
-
-def _translate_pl_to_scada(pl_list: List[str]) -> List[str]:
-    return [PL_TO_SCADA[p] for p in pl_list if p in PL_TO_SCADA]
-
 
 def _resolve_milling_streams(version: str) -> Optional[List[str]]:
     """
@@ -6472,8 +6438,19 @@ def classify_order(order) -> Dict[str, Any]:
             result["error"] = f"No palletizer mapping found for version {version_clean} (original: {version})"
             return result
 
-        # Convert palletizer code → SCADA PL tag
-        result["equipment"] = _translate_pl_to_scada([mapping.palletizer])
+        # ✅ A2: the SCADA tag comes from the row, not from a hardcoded map.
+        # An unmapped line is now an error naming the version, instead of an
+        # empty equipment list that surfaced later as "No main equipment mapped".
+        if not mapping.scada_tag:
+            result["error"] = (
+                f"Packing version {version_clean} is mapped to line "
+                f"'{mapping.palletizer}' but that line has no SCADA tag. Set one "
+                f"in Palletizer Mapping."
+            )
+            print(f"❌ [classify_order] {result['error']}")
+            return result
+
+        result["equipment"] = [mapping.scada_tag]
         result["formula"] = ""
 
         result["packing_info"] = {
@@ -6484,9 +6461,19 @@ def classify_order(order) -> Dict[str, Any]:
             # has always rendered blank. Additive, so the four modules reading
             # this shape are unaffected.
             "packing_line": mapping.palletizer,
-            # kg_per_pallet is the weight of ONE bag, despite the name — see the
-            # transposed-columns note in the plan (§6). A2 renames these.
-            "bag_size": str(int(mapping.kg_per_pallet)) if mapping.kg_per_pallet else None,
+            "scada_tag": mapping.scada_tag,
+
+            # ✅ A2: the two correctly-named values. `bags_per_pallet_actual` is
+            # the delta multiplier; `bag_weight_kg` is the weight of one bag.
+            # The three below them are the transposed originals, still published
+            # because PalletizerMapping.tsx and lib/api.ts read those names.
+            "bags_per_pallet_actual": mapping.multiplier(),
+            "bag_weight_kg": float(mapping.bag_weight_kg or mapping.kg_per_pallet or 0),
+            "bag_size": (
+                str(int(mapping.bag_weight_kg or mapping.kg_per_pallet))
+                if (mapping.bag_weight_kg or mapping.kg_per_pallet) else None
+            ),
+
             "bag_size_kg": float(mapping.bag_size_kg or 0),
             "bags_per_pallet": float(mapping.bags_per_pallet or 0),  # ✅ FIX: Use float, not int
             "kg_per_pallet": float(mapping.kg_per_pallet or 0),
@@ -7101,6 +7088,12 @@ def get_current_production(order, classification: Dict, db=None, force_fresh_bas
     byp_tags = [get_attr_safe(order, "scale1"), get_attr_safe(order, "scale2"), get_attr_safe(order, "scale3")]
     byp_tags = [t for t in byp_tags if t]
 
+    # ✅ A2 fix to A7: PACKING stores its MAIN tag in the scale1 slot, so every
+    # packing order was landing here with a PL60x_TOT/SL60x_TOT tag — which
+    # never has a baseline column — and reporting a configuration_error that was
+    # not one. Use _get_baseline_for_tag, which resolves a scale-slot tag
+    # through its slot and only raises when a tag has nowhere to read from.
+    #
     # ✅ A7: byproducts do not drive confirmed_qty, so an unmapped byproduct tag
     # is reported but does not halt the order. It is left out of the dict rather
     # than defaulted to 0.0, so nothing downstream can mistake a missing
@@ -7109,9 +7102,7 @@ def get_current_production(order, classification: Dict, db=None, force_fresh_bas
     byproduct_unmapped = []
     for tag in byp_tags:
         try:
-            byproduct_baselines[tag] = baseline_guard.read_baseline_column(
-                order, tag, po_number=get_attr_safe(order, "order_id", None)
-            )
+            byproduct_baselines[tag] = _get_baseline_for_tag(order, tag)
         except baseline_guard.UnmappedTagError as exc:
             byproduct_unmapped.append(exc.tag)
             baseline_guard.report_unmapped_tag(
@@ -15921,14 +15912,13 @@ def debug_packing_mappings():
             
             result = []
             for m in mappings:
-                # Convert palletizer code to SCADA counter tag
-                palletizer = m.palletizer or ""
-                scada_counter = _translate_pl_to_scada([palletizer]) if palletizer else []
-                
+                # ✅ A2: the SCADA tag is a column now, not a hardcoded lookup.
                 result.append({
                     "version": m.version,
                     "palletizer": m.palletizer,
-                    "scada_counter": scada_counter[0] if scada_counter else None,
+                    "scada_counter": m.scada_tag,
+                    "bags_per_pallet_actual": m.bags_per_pallet_actual,
+                    "bag_weight_kg": m.bag_weight_kg,
                     "bag_size_kg": m.bag_size_kg,
                     "bags_per_pallet": m.bags_per_pallet,
                     "kg_per_pallet": m.kg_per_pallet
@@ -16046,59 +16036,90 @@ def palletizer_mapping():
         # GET: Fetch all palletizer mappings
         with _db_session() as db:
             mappings = db.query(PalletizerMapping).order_by(PalletizerMapping.version.asc()).all()
-            result = []
-            for mapping in mappings:
-                result.append({
-                    "id": mapping.id,
-                    "version": mapping.version,
-                    "palletizer": mapping.palletizer,
-                    "bag_size_kg": float(mapping.bag_size_kg) if mapping.bag_size_kg else 0.0,
-                    "bags_per_pallet": int(mapping.bags_per_pallet) if mapping.bags_per_pallet else 0,
-                    "kg_per_pallet": float(mapping.kg_per_pallet) if mapping.kg_per_pallet else 0.0,
-                    "description": mapping.description,
-                })
-            return jsonify(result)
+            # ✅ A2: to_dict() publishes scada_tag and the correctly-named
+            # numbers alongside the deprecated ones the screen still reads.
+            return jsonify([mapping.to_dict() for mapping in mappings])
     
     # POST: Create or update palletizer mapping
     data = request.json or {}
     version = data.get("version", "").strip().upper()
     palletizer = data.get("palletizer")
-    bag_size = data.get("bag_size_kg")
-    bags_per_pallet = data.get("bags_per_pallet")
-    kg_per_pallet = data.get("kg_per_pallet")
     description = data.get("description")
 
     if not version or not palletizer:
         return jsonify({"success": False, "message": "Version and palletizer required"}), 400
-    
+
+    # ✅ A2: accept either naming. The screen still sends bag_size_kg /
+    # kg_per_pallet; A6 switches it to the correct names. Both sets are written,
+    # so a row stays readable by whichever client sees it first.
+    def _number(*keys):
+        for key in keys:
+            if data.get(key) is not None:
+                try:
+                    return float(data[key])
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    bags_per_pallet_actual = _number("bags_per_pallet_actual", "bag_size_kg")
+    bag_weight_kg = _number("bag_weight_kg", "kg_per_pallet")
+    legacy_bags_per_pallet = _number("bags_per_pallet")
+    scada_tag = (data.get("scada_tag") or "").strip().upper() or None
+
+    if bags_per_pallet_actual is None or bag_weight_kg is None:
+        return jsonify({
+            "success": False,
+            "message": "bags_per_pallet_actual and bag_weight_kg are required "
+                       "(bag_size_kg / kg_per_pallet accepted as the old names)",
+        }), 400
+
     with _db_session() as db:
         existing = db.query(PalletizerMapping).filter(
             PalletizerMapping.version == version
         ).first()
 
-        if existing:
-            # UPDATE mapping
-            existing.palletizer = palletizer
-            existing.bag_size_kg = bag_size
-            existing.bags_per_pallet = bags_per_pallet
-            existing.kg_per_pallet = kg_per_pallet
-            existing.description = description if description else None
-            db.commit()
-            return jsonify({"success": True, "message": "Mapping updated", "mode": "update"})
+        # A line's SCADA tag is a property of the line, so reuse whatever other
+        # versions on the same palletizer already carry rather than making the
+        # operator retype it.
+        if scada_tag is None:
+            sibling = (
+                db.query(PalletizerMapping)
+                  .filter(PalletizerMapping.palletizer == palletizer,
+                          PalletizerMapping.scada_tag.isnot(None))
+                  .first()
+            )
+            scada_tag = sibling.scada_tag if sibling else (
+                existing.scada_tag if existing else None
+            )
 
-        # INSERT new row
-        new_row = PalletizerMapping(
-            version=version,
-            palletizer=palletizer,
-            bag_size_kg=bag_size,
-            bags_per_pallet=bags_per_pallet,
-            kg_per_pallet=kg_per_pallet,
-            description=description if description else None
+        target = existing or PalletizerMapping(version=version)
+        target.palletizer = palletizer
+        target.scada_tag = scada_tag
+        target.bags_per_pallet_actual = bags_per_pallet_actual
+        target.bag_weight_kg = bag_weight_kg
+        # Keep the deprecated columns in step - they are NOT NULL and the
+        # screen reads them until A6.
+        target.bag_size_kg = bags_per_pallet_actual
+        target.kg_per_pallet = bag_weight_kg
+        target.bags_per_pallet = (
+            legacy_bags_per_pallet if legacy_bags_per_pallet is not None
+            else (target.bags_per_pallet if existing else 1)
         )
-        db.add(new_row)
+        target.description = description if description else None
+
+        if existing is None:
+            db.add(target)
         db.commit()
 
-        return jsonify({"success": True, "message": "Mapping created", "mode": "create"})
+        message = "Mapping updated" if existing else "Mapping created"
+        payload = {"success": True, "message": message,
+                   "mode": "update" if existing else "create"}
+        if not scada_tag:
+            payload["warning"] = (
+                f"No SCADA tag set for line '{palletizer}'. Orders on version "
+                f"{version} will not track until one is set."
+            )
+        return jsonify(payload)
 
 
 @orders_bp.route("/palletizer-mapping/<int:mapping_id>", methods=["DELETE", "OPTIONS"])
