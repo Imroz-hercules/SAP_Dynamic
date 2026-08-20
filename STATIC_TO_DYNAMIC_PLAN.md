@@ -200,6 +200,63 @@ Delivers capabilities **6** and **9**, and finishes **2** and **3**.
 
 ---
 
+## 4a. Handover from A to B — 20 Aug 2026
+
+**Workstream A is complete.** `main` is at the A8 commit; the working tree is
+clean and both remotes are in sync.
+
+### Re-verified line-number pass over the files B's tasks cite
+
+Checked against the tree as it stands. **Eleven of thirteen are unchanged.**
+Two drifted, both because of A8, and both in files A was allowed to touch:
+
+| Cited | Now | Why |
+|---|---|---|
+| `app.py:472` `CORS_ALLOWED_ORIGINS` | **`app.py:477`** | A8 added one blueprint import + one registration — the exception agreed when we went sequential |
+| `kpi_routes.py:262` `nameplate_tph = 25.0` | **`kpi_routes.py:279`** | A8 replaced four module-level `os.getenv` credential lines with resolver functions; everything below `:55` moved by about +17 |
+
+Two more B4 citations move with the same shift: the `plant = "3130"` defaults
+are now **`kpi_routes.py:875`** and **`:1162`** (were `:858`, `:1145`).
+
+Unchanged and verified: `app_scheduler.py:272`, `scale_service.py:768`,
+`:1107`, `:1595`, `embedded_emulator.py:425`, `scada_routes.py:300`, `:636`,
+`kpi_store_flat.py:6`, `:20`, `Admin.tsx:144`, `TimeFilter.tsx:34`.
+
+### What A changed outside its own file set
+
+| File | What, and why it was necessary |
+|---|---|
+| `backend/app.py` | One blueprint import and one `register_blueprint` for A8's Engineering routes. The agreed exception. |
+| `backend/config/sap_config.py`, `routes/kpi_routes.py`, `routes/sap_sync.py`, `services/kpi_shift_auto_sync.py`, `services/sap_confirmation.py`, `services/sap_real_client.py` | A8 pointed all six SAP-config read sites at `services/runtime_config.py`. **The committed SAP credential literals are gone from the Python source** — that is most of B5's code half. |
+| `Frontend/client/src/lib/api.ts` | `getJSON` now attaches the bearer token, like `apiFetch`. **This affects `scadaConfigApi` and `kpiConfigApi` too.** The config routes are unprotected today, so nothing changes behaviourally. |
+| `Frontend/client/src/pages/hercules-sfms/Admin.tsx` | A comment block only, marking the dead SAP form. **Deliberately not deleted** — that file is B's for B6 and removing ~100 lines would shift every line B6 cites. |
+
+### Three things that change B's work
+
+1. **A7 constrains B1 and B3.** Adding a tag to `scada_tags` is not enough to
+   make it usable for confirmed-weight production: without a
+   `baseline_<tag>` column on `process_orders`, orders on that tag now **halt**
+   rather than report a wrong number. `backend/check_unmapped_tags.py` lists
+   any mapping that would.
+2. **Mock SAP mode now covers the order pull.** §6 recorded that it did not.
+   A8 fixed it as a side effect — the base URL resolves through
+   `runtime_config.sap_base_url()`, which consults `get_mock_sap_mode()`.
+3. **The poll intervals are still B5's.** The Engineering page shows them
+   read-only with a note saying so, because APScheduler bakes them into the job
+   and the scheduler object is a local inside `start_scheduler()`.
+
+### The app starts clean
+
+Demo mode, `MSSQL_ENABLED=false`: `GET /api/health` → 200, no import errors.
+178 assertions across seven `backend/test_*.py` suites pass, plus
+`check_unmapped_tags.py`.
+
+**Still to do, and none of it is code:** the BRF2 and BK10 data corrections
+(both need confirming with the mill — see §6), rotating the credentials that
+remain in this repository's history, and the single frontend build.
+
+---
+
 ## 5. Workstream B — Signals and metrics
 
 **Branch** `feat/dynamic-plant-config` · **Owner** Imroz
