@@ -157,7 +157,7 @@ Seed data reproduces current behaviour, so a fresh DB matches production. Where 
 
 ## 4. Workstream A — Order routing and plant config
 
-**Branch** `feat/dynamic-order-routing` · **Owner** Imroz
+**Branch** `feat/dynamic-order-routing` · **Owner** Mohamed
 
 Delivers capabilities **6** and **9**, and finishes **2** and **3**.
 
@@ -180,7 +180,7 @@ Delivers capabilities **6** and **9**, and finishes **2** and **3**.
 
 ## 5. Workstream B — Signals and metrics
 
-**Branch** `feat/dynamic-plant-config` · **Owner** Mohamed
+**Branch** `feat/dynamic-plant-config` · **Owner** Imroz
 
 Delivers capabilities **7** and **8**, and finishes **9**.
 
