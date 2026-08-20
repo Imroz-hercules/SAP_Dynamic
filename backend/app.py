@@ -331,6 +331,10 @@ from routes.sap_log_routes import sap_log_bp
 from routes.emulator_routes import emulator_bp
 from routes.system_mode_routes import system_mode_bp
 from routes.admin_routes import admin_bp
+# --- Dynamic configuration blueprints (added in commit 0; see backend/CONTRACTS.md) ---
+from routes.classification_routes import classification_bp   # Workstream A
+from routes.scada_config_routes import scada_config_bp       # Workstream B
+from routes.kpi_config_routes import kpi_config_bp           # Workstream B
 from services.sync_scheduler import start_sync_scheduler
 
 # --- DB engines / Base ---
@@ -344,6 +348,9 @@ from models.shift_master import ShiftMaster
 from models.offline_confirmation import OfflineConfirmation  # Ensure table creation
 from models.scale_overflow import ScaleOverflow  # Ensure table creation
 from models.sap_log import SapLog  # Ensure table creation
+from models.classification_rule import ClassificationRule  # Workstream A - ensure table creation
+from models.scada_tag import ScadaTag                      # Workstream B - ensure table creation
+from models.kpi_config import KpiConfig                    # Workstream B - ensure table creation
 
 # --- New KPI Snapshot tables ---
 from models.milling_kpi_snapshot import create_milling_kpi_schema
@@ -593,6 +600,9 @@ def create_app():
     app.register_blueprint(emulator_bp)
     app.register_blueprint(system_mode_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(classification_bp)   # Workstream A
+    app.register_blueprint(scada_config_bp)     # Workstream B
+    app.register_blueprint(kpi_config_bp)       # Workstream B
     
     from init_sync_settings import init_default_sync_settings
     init_default_sync_settings()
