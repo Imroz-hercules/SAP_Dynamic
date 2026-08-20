@@ -434,10 +434,19 @@ export interface PushConfirmationResponse {
 }
 
 async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
-  const headers = {
+  const headers: Record<string, string> = {
     'ngrok-skip-browser-warning': 'true',
     ...(init?.headers as Record<string, string> || {}),
   };
+  // A6: getJSON did not attach the bearer token, unlike apiFetch (apiConfig.ts)
+  // and apiRequest (queryClient.ts). The config routes are unprotected today,
+  // so nothing was failing - but any of them gaining auth later would have
+  // 401'd only the clients that go through here. Same behaviour as apiFetch:
+  // send the token when there is one, otherwise send nothing.
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const res = await fetch(url, { ...init, headers });
   const text = await res.text();
   if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
@@ -743,18 +752,37 @@ export interface PalletizerMapping {
   id: number;
   version: string;
   palletizer: string;
+
+  // A2: the SCADA counter tag for this line. Was a hardcoded map in the
+  // backend; adding a line no longer needs a deploy.
+  scada_tag?: string | null;
+
+  // A2: correctly-named values. `bags_per_pallet_actual` is the multiplier
+  // applied to the SCADA delta; `bag_weight_kg` is the weight of one bag.
+  bags_per_pallet_actual?: number;
+  bag_weight_kg?: number;
+
+  // DEPRECATED (A2) - the three below are transposed and kept only so older
+  // clients keep working. `bag_size_kg` actually holds the bags-per-pallet
+  // multiplier and `kg_per_pallet` the bag weight; `bags_per_pallet` is unused
+  // and is 1 on every row but one. Read the two fields above instead.
   bag_size_kg: number;
   bags_per_pallet: number;
   kg_per_pallet: number;
+
   description?: string;
 }
 
 export interface PalletizerMappingRequest {
   version: string;
   palletizer: string;
-  bag_size_kg: number;
-  bags_per_pallet: number;
-  kg_per_pallet: number;
+  scada_tag?: string | null;
+  bags_per_pallet_actual?: number;
+  bag_weight_kg?: number;
+  // Accepted as the old names; the backend writes both sets either way.
+  bag_size_kg?: number;
+  bags_per_pallet?: number;
+  kg_per_pallet?: number;
   description?: string;
 }
 
@@ -915,9 +943,21 @@ export interface ClassificationRuleRequest {
   description?: string | null;
 }
 
+export interface ClassificationResolveResult {
+  material: string;
+  normalised: string;
+  order_type: string | null;
+  matched: boolean;
+}
+
+// A6: the return types below were written in commit 0 against a stub that
+// returned {success, message}. The A1 backend returns the rule itself on write
+// and {deleted: rule} on delete. Corrected to match, so callers get the row
+// back rather than a shape that never arrives.
 export const classificationApi = {
-  async getRules(): Promise<ClassificationRule[]> {
-    return getJSON<ClassificationRule[]>(getApiUrl('/api/classification/rules'), {
+  async getRules(ruleType?: ClassificationRule['rule_type']): Promise<ClassificationRule[]> {
+    const query = ruleType ? `?rule_type=${encodeURIComponent(ruleType)}` : '';
+    return getJSON<ClassificationRule[]>(getApiUrl(`/api/classification/rules${query}`), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -925,19 +965,30 @@ export const classificationApi = {
 
   async createOrUpdateRule(
     payload: ClassificationRuleRequest,
-  ): Promise<{ success: boolean; message: string }> {
-    return getJSON(getApiUrl('/api/classification/rules'), {
+  ): Promise<ClassificationRule> {
+    return getJSON<ClassificationRule>(getApiUrl('/api/classification/rules'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
   },
 
-  async deleteRule(id: number): Promise<{ success: boolean; message: string }> {
-    return getJSON(getApiUrl(`/api/classification/rules/${id}`), {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    });
+  async deleteRule(id: number): Promise<{ deleted: ClassificationRule }> {
+    return getJSON<{ deleted: ClassificationRule }>(
+      getApiUrl(`/api/classification/rules/${id}`),
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  },
+
+  /** Preview what a material code would classify as, without starting an order. */
+  async resolve(material: string): Promise<ClassificationResolveResult> {
+    return getJSON<ClassificationResolveResult>(
+      getApiUrl(`/api/classification/resolve?material=${encodeURIComponent(material)}`),
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
   },
 };
 

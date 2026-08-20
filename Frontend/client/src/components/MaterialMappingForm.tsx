@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getApiUrl, API_BASE_URL, apiFetch } from '../lib/apiConfig';
+import { classificationApi, type ClassificationRule } from '../lib/api';
 
 // Log API configuration when component loads
 if (typeof window !== 'undefined') {
@@ -36,8 +37,14 @@ const MaterialMappingForm: React.FC<MaterialMappingFormProps> = ({ onAdd }) => {
   const [packingVersions, setPackingVersions] = useState<string[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(true);
   
-  // Packing line options - only for packing materials
-  const packingLineOptions = ['PL601', 'PL602', 'PL603', 'PL604', 'PL605', 'PL606', 'PL607'];
+  // A6: packing lines come from the mappings that actually exist. The list
+  // used to be hardcoded and offered PL604 and PL605, which have no row in
+  // palletizer_mapping - an order on either would never have tracked.
+  const [packingLineOptions, setPackingLineOptions] = useState<string[]>([]);
+
+  // A6: classification rules, so this form routes a material the same way the
+  // backend does. See getMaterialType below.
+  const [prefixRules, setPrefixRules] = useState<ClassificationRule[]>([]);
   
   // ✅ Fetch versions from API on component mount
   useEffect(() => {
@@ -62,6 +69,12 @@ const MaterialMappingForm: React.FC<MaterialMappingFormProps> = ({ onAdd }) => {
           const packingData = await packingResponse.json();
           const packingVersionList = packingData.map((p: { version: string }) => p.version).sort();
           setPackingVersions(packingVersionList);
+          // A6: the lines that actually have a mapping.
+          setPackingLineOptions(
+            Array.from(new Set(
+              packingData.map((p: { palletizer: string }) => p.palletizer).filter(Boolean),
+            )).sort() as string[],
+          );
           console.log('✅ Loaded packing versions from API:', packingVersionList);
         } else {
           console.warn('⚠️ Failed to fetch packing versions, using fallback');
@@ -80,14 +93,46 @@ const MaterialMappingForm: React.FC<MaterialMappingFormProps> = ({ onAdd }) => {
     fetchVersions();
   }, []);
 
-  // Helper function to determine material type from code
+  // A6: load the classification rules once, so getMaterialType can resolve a
+  // material the same way the backend does without a request per keystroke.
+  useEffect(() => {
+    classificationApi
+      .getRules('material_prefix')
+      .then((rules) =>
+        setPrefixRules(
+          rules
+            .filter((r) => r.is_active)
+            .sort(
+              (a, b) =>
+                a.priority - b.priority ||
+                Number(a.match_value === '*') - Number(b.match_value === '*') ||
+                a.match_value.localeCompare(b.match_value),
+            ),
+        ),
+      )
+      .catch((err) => console.warn('⚠️ Could not load classification rules:', err));
+  }, []);
+
+  // Helper function to determine material type from code.
+  //
+  // A6: this used to be `materialCode.includes('13')` - a SUBSTRING test, and
+  // checked first, so a packing material that happened to contain "13"
+  // anywhere (000000000014130001, say) was shown the MILLING version list.
+  // Same bug A1 fixed in material_routes.py on the backend.
+  //
+  // Now resolved against classification_rules, matching the backend exactly:
+  // prefix of the zero-stripped code, lowest priority first, '*' last.
   const getMaterialType = (materialCode: string): 'milling' | 'packing' | null => {
     if (materialCode.length !== 18) return null;
-    
-    // Check if code contains 13-milling or 14-packing pattern
-    if (materialCode.includes('13')) return 'milling';
-    if (materialCode.includes('14')) return 'packing';
-    
+
+    const stripped = materialCode.replace(/^0+/, '');
+    if (stripped.length < 2) return null;
+
+    for (const rule of prefixRules) {
+      if (rule.match_value === '*' || stripped.startsWith(rule.match_value)) {
+        return rule.result_value === 'MILLING' ? 'milling' : 'packing';
+      }
+    }
     return null;
   };
 

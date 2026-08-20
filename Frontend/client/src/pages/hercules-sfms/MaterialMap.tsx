@@ -5,6 +5,7 @@ import { WaterSystemLayout } from '../../components/hercules-sfms/WaterSystemLay
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { getApiUrl, API_BASE_URL, apiFetch } from '../../lib/apiConfig';
+import ClassificationRuleEditor from '../../components/hercules-sfms/ClassificationRuleEditor';
 import { useLocation } from 'wouter';
 
 // Log API configuration when component loads
@@ -592,6 +593,19 @@ const MaterialMap = () => {
               ? 'focus:ring-slate-400 focus:border-slate-400' 
               : 'focus:ring-cyan-400 focus:border-cyan-400 focus:shadow-[0_0_15px_rgba(0,255,255,0.3)]'
           }`}
+        />
+      </div>
+
+      {/* A6: order classification rules. Which material codes route to milling
+          and which to packing used to be hardcoded in the backend; A1 moved it
+          into the classification_rules table and this is the editor for it.
+          It sits above the version mappings because routing is decided first:
+          an order is classified, and only then does its version pick scales. */}
+      <div className="mb-6 w-full">
+        <ClassificationRuleEditor
+          theme={theme}
+          isAdmin={isAdmin}
+          onNotify={showNotification}
         />
       </div>
 

@@ -106,12 +106,17 @@ const PalletizerMapping = () => {
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
 
-  const [formData, setFormData] = useState<Omit<PalletizerMappingType, 'id'>>({
+  // A6: the form now works in the correctly-named A2 fields. The three
+  // deprecated ones (bag_size_kg / bags_per_pallet / kg_per_pallet) are
+  // transposed, and the placeholders on this screen were teaching the wrong
+  // meanings - "Bag Size (KG) e.g. 45" fed the bags-per-pallet MULTIPLIER,
+  // which is 32 for that version. The backend accepts either naming.
+  const [formData, setFormData] = useState({
     version: '',
     palletizer: '',
-    bag_size_kg: 0,
-    bags_per_pallet: 0,
-    kg_per_pallet: 0,
+    scada_tag: '',
+    bags_per_pallet_actual: 0,
+    bag_weight_kg: 0,
     description: '',
   });
 
@@ -163,8 +168,8 @@ const PalletizerMapping = () => {
   });
 
   const handleAddPalletizer = async () => {
-    if (!formData.version || !formData.palletizer || formData.bag_size_kg <= 0 || 
-        formData.bags_per_pallet <= 0 || formData.kg_per_pallet <= 0) {
+    if (!formData.version || !formData.palletizer ||
+        formData.bags_per_pallet_actual <= 0 || formData.bag_weight_kg <= 0) {
       showNotification('Please fill in all fields with valid values', 'error');
       return;
     }
@@ -173,9 +178,9 @@ const PalletizerMapping = () => {
       const payload: PalletizerMappingRequest = {
         version: formData.version.toUpperCase(),
         palletizer: formData.palletizer,
-        bag_size_kg: formData.bag_size_kg,
-        bags_per_pallet: formData.bags_per_pallet,
-        kg_per_pallet: formData.kg_per_pallet,
+        scada_tag: formData.scada_tag.trim().toUpperCase() || null,
+        bags_per_pallet_actual: formData.bags_per_pallet_actual,
+        bag_weight_kg: formData.bag_weight_kg,
         description: formData.description || '',
       };
 
@@ -189,9 +194,9 @@ const PalletizerMapping = () => {
         setFormData({
           version: '',
           palletizer: '',
-          bag_size_kg: 0,
-          bags_per_pallet: 0,
-          kg_per_pallet: 0,
+          scada_tag: '',
+          bags_per_pallet_actual: 0,
+          bag_weight_kg: 0,
           description: '',
         });
         setModalOpen(false);
@@ -210,9 +215,9 @@ const PalletizerMapping = () => {
     setFormData({
       version: '',
       palletizer: '',
-      bag_size_kg: 0,
-      bags_per_pallet: 0,
-      kg_per_pallet: 0,
+      scada_tag: '',
+      bags_per_pallet_actual: 0,
+      bag_weight_kg: 0,
       description: '',
     });
   };
@@ -223,9 +228,10 @@ const PalletizerMapping = () => {
     setFormData({
       version: palletizer.version,
       palletizer: palletizer.palletizer,
-      bag_size_kg: palletizer.bag_size_kg,
-      bags_per_pallet: palletizer.bags_per_pallet,
-      kg_per_pallet: palletizer.kg_per_pallet,
+      scada_tag: palletizer.scada_tag || '',
+      // Fall back to the deprecated columns for a row written before A2.
+      bags_per_pallet_actual: palletizer.bags_per_pallet_actual || palletizer.bag_size_kg || 0,
+      bag_weight_kg: palletizer.bag_weight_kg || palletizer.kg_per_pallet || 0,
       description: palletizer.description || '',
     });
     setModalOpen(true);
@@ -458,10 +464,10 @@ const PalletizerMapping = () => {
                 <tr>
                   <th className={`px-4 py-3 border-r ${cellBorder}`}>ID</th>
                   <th className={`px-4 py-3 border-r ${cellBorder}`}>Version</th>
-                  <th className={`px-4 py-3 border-r ${cellBorder}`}>Palletizer</th>
-                  <th className={`px-4 py-3 border-r ${cellBorder}`}>Bag Size (KG)</th>
-                  <th className={`px-4 py-3 border-r ${cellBorder}`}>Bags Per Pallet</th>
-                  <th className={`px-4 py-3 border-r ${cellBorder}`}>KG Per Pallet</th>
+                  <th className={`px-4 py-3 border-r ${cellBorder}`}>Line</th>
+                  <th className={`px-4 py-3 border-r ${cellBorder}`}>SCADA Tag</th>
+                  <th className={`px-4 py-3 border-r ${cellBorder}`}>Bags / Pallet</th>
+                  <th className={`px-4 py-3 border-r ${cellBorder}`}>Bag Weight (KG)</th>
                   <th className={`px-4 py-3 border-r ${cellBorder}`}>Description</th>
                   {isAdmin && <th className={`px-4 py-3`}>Actions</th>}
                 </tr>
@@ -484,9 +490,19 @@ const PalletizerMapping = () => {
                       <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.id}</td>
                       <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.version}</td>
                       <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.palletizer}</td>
-                      <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.bag_size_kg}</td>
-                      <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.bags_per_pallet}</td>
-                      <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.kg_per_pallet}</td>
+                      <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>
+                        {palletizer.scada_tag || (
+                          <span className={theme === 'light' ? 'text-amber-600' : 'text-amber-400'}>
+                            not set
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>
+                        {palletizer.bags_per_pallet_actual ?? palletizer.bag_size_kg}
+                      </td>
+                      <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>
+                        {palletizer.bag_weight_kg ?? palletizer.kg_per_pallet}
+                      </td>
                       <td className={`px-4 py-3 border-r ${cellBorder} ${tableCellHighlight}`}>{palletizer.description || '-'}</td>
                       {isAdmin && (
                         <td className={`px-4 py-3 ${tableCellHighlight}`}>
@@ -624,60 +640,71 @@ const PalletizerMapping = () => {
                     </select>
                   </div>
 
-                  {/* Bag Size (KG) */}
+                  {/* SCADA Tag (A2) */}
                   <div className="space-y-2">
                     <label className={`block text-sm font-semibold ${
                       theme === 'light' ? 'text-slate-700' : 'text-cyan-300'
                     }`}>
-                      Bag Size (KG)
+                      SCADA Tag
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.scada_tag}
+                      onChange={(e) => setFormData({ ...formData, scada_tag: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g., PL601_TOT"
+                    />
+                    <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                      The counter this line reports on. Leave blank to reuse the tag
+                      already set for this line. Without one, orders on this version
+                      cannot track.
+                    </p>
+                  </div>
+
+                  {/* Bags per Pallet — A2: the multiplier applied to the SCADA delta */}
+                  <div className="space-y-2">
+                    <label className={`block text-sm font-semibold ${
+                      theme === 'light' ? 'text-slate-700' : 'text-cyan-300'
+                    }`}>
+                      Bags / Pallet
                     </label>
                     <input
                       type="number"
-                      value={formData.bag_size_kg || ''}
-                      onChange={(e) => setFormData({ ...formData, bag_size_kg: parseFloat(e.target.value) || 0 })}
+                      value={formData.bags_per_pallet_actual || ''}
+                      onChange={(e) => setFormData({ ...formData, bags_per_pallet_actual: parseFloat(e.target.value) || 0 })}
+                      className={inputClass}
+                      placeholder="e.g., 32"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                    <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                      The SCADA delta is multiplied by this to get bags. Getting it
+                      wrong scales everything this version confirms to SAP.
+                    </p>
+                  </div>
+
+                  {/* Bag Weight (A2) */}
+                  <div className="space-y-2">
+                    <label className={`block text-sm font-semibold ${
+                      theme === 'light' ? 'text-slate-700' : 'text-cyan-300'
+                    }`}>
+                      Bag Weight (KG)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.bag_weight_kg || ''}
+                      onChange={(e) => setFormData({ ...formData, bag_weight_kg: parseFloat(e.target.value) || 0 })}
                       className={inputClass}
                       placeholder="e.g., 45"
                       min="0"
                       step="0.01"
                       required
                     />
-                  </div>
-
-                  {/* Bags Per Pallet */}
-                  <div className="space-y-2">
-                    <label className={`block text-sm font-semibold ${
-                      theme === 'light' ? 'text-slate-700' : 'text-cyan-300'
-                    }`}>
-                      Bags Per Pallet
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.bags_per_pallet || ''}
-                      onChange={(e) => setFormData({ ...formData, bags_per_pallet: parseInt(e.target.value) || 0 })}
-                      className={inputClass}
-                      placeholder="e.g., 32"
-                      min="0"
-                      required
-                    />
-                  </div>
-
-                  {/* KG Per Pallet */}
-                  <div className="space-y-2">
-                    <label className={`block text-sm font-semibold ${
-                      theme === 'light' ? 'text-slate-700' : 'text-cyan-300'
-                    }`}>
-                      KG Per Pallet
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.kg_per_pallet || ''}
-                      onChange={(e) => setFormData({ ...formData, kg_per_pallet: parseFloat(e.target.value) || 0 })}
-                      className={inputClass}
-                      placeholder="e.g., 1440"
-                      min="0"
-                      step="0.01"
-                      required
-                    />
+                    <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Weight of one bag. Shown for reference — it does not affect the
+                      confirmed quantity.
+                    </p>
                   </div>
 
                   {/* Description */}

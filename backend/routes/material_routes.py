@@ -5,6 +5,38 @@ from services.classification_service import resolve_order_type  # A1: rules-driv
 
 material_bp = Blueprint("material_bp", __name__)
 
+# A6: the fallback used when a caller adds a packing material without naming a
+# line. "PL601" was hardcoded here; a line that has no palletizer_mapping row
+# produces an order that classifies but never tracks, so the default has to
+# come from the data.
+DEFAULT_PACKING_LINE_FALLBACK = "PL601"
+
+
+def _default_packing_line() -> str:
+    """
+    Lowest-numbered packing line that actually has a mapping.
+
+    Falls back to the historical literal if the table cannot be read — this is
+    a convenience default on a create path, not something worth failing over.
+    """
+    try:
+        from database import PostgresSessionLocal
+        from models.palletizer_mapping import PalletizerMapping
+
+        with PostgresSessionLocal() as db:
+            row = (
+                db.query(PalletizerMapping.palletizer)
+                  .filter(PalletizerMapping.palletizer.isnot(None))
+                  .order_by(PalletizerMapping.palletizer.asc())
+                  .first()
+            )
+        if row and row[0]:
+            return row[0]
+    except Exception as exc:
+        print(f"⚠️ [materials] Could not read a default packing line ({exc}) — "
+              f"using {DEFAULT_PACKING_LINE_FALLBACK}")
+    return DEFAULT_PACKING_LINE_FALLBACK
+
 @material_bp.route("/api/materials/health", methods=["GET"])
 def health_check():
     """Health check endpoint for material routes"""
@@ -62,7 +94,11 @@ def add_material():
             if order_type == 'MILLING':
                 data['packingLine'] = 'N/A'  # Milling materials don't need packing lines
             elif order_type == 'PACKING' and not data.get('packingLine'):
-                data['packingLine'] = 'PL601'  # Default packing line — moves to the DB in A6
+                # ✅ A6: was a hardcoded 'PL601'. Now the lowest-numbered line
+                # that actually has a mapping, so this cannot name a line that
+                # does not exist. The screen sends an explicit value anyway —
+                # this only fires when the caller omits one.
+                data['packingLine'] = _default_packing_line()
         
         # Note: Ensure the keys in `data` match the column names exactly.
         insert_query = text("""
