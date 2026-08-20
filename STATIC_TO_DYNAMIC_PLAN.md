@@ -217,7 +217,31 @@ All verifiable from the repository — the CSVs are exports of the live tables a
 | BKF1 CKF1 IWF1 IWF2 BRF3 MMCF | single scale + byproducts | matches | byproducts merged | Double count |
 | IWSM SWSM | WG101, WG302 | matches | matches | Agreed |
 
-**BRF2 is running wrong today.** The database says confirmed weight comes off WG501; the scheduled shift updater reads WG502. Different physical scales, so BRF2 shift weights have gone to SAP off the wrong stream. The `scada_recipe_name` column (`F80 + F95` for BRF2) is the best in-repo evidence.
+**RESOLVED — the database row is the wrong one, not `shift_live_update`.** Earlier revisions of this plan assumed the opposite. Two independent checks against repo data settle it, and BRF2 is the only version that fails either.
+
+*Stream identity.* `Book1.xlsx` shows `WG501_Product = F80` in all 10,000 rows and `WG502_Product` = `F70` or `IWW`, tracking `WG202_Product` (the mill recipe). So a recipe written `X + Y` puts X on WG501 and Y on WG502 — confirmed across two different recipes in real data. The stream names come from `auto_validator.py:75-81`, which annotates BRF2 as `BAKERY + BRAWNY + BRAN` (WG501/WG502/WG503) and BRF3 as `BRAWNY + CAKE + BRAN`. Together these fix the product codes: **F80 = Bakery, F70 = Cake, F95 = Brawny, IWW = IWW.**
+
+Every version confirms off the stream carrying its own product:
+
+| Version | Recipe | Stream layout | Its product | Expected | DB says |
+|---|---|---|---|---|---|
+| BKF1 | F80 | WG501=Bakery | Bakery | WG501 | WG501 ✓ |
+| CKF1 | F80+F70 | WG501=Bakery, WG502=Cake | Cake | WG502 | WG502 ✓ |
+| IWF1 | F80+IWW | WG501=Bakery, WG502=IWW | IWW | WG502 | WG502 ✓ |
+| IWF2 | F70+IWW | WG501=Cake, WG502=IWW | IWW | WG502 | WG502 ✓ |
+| BRF3 | F95+F70 | WG501=Brawny, WG502=Cake | Brawny | WG501 | WG501 ✓ |
+| MMCF | F80+F70 | WG501=Bakery, WG502=Cake | Cake | WG502 | WG502 ✓ |
+| **BRF2** | **F80+F95** | **WG501=Bakery, WG502=Brawny** | **Brawny** | **WG502** | **WG501 ✗** |
+
+*Byproduct coverage.* Every two-flour version tracks three streams (main + two byproducts). BRF2 tracks only two — `scales=["WG501"], scale1=WG503` — leaving WG502 unaccounted. It is the only under-covered row.
+
+The deprecated hardcoded map (`order_validation.py:5790`, `:5815`) has BRF2 as main WG502 with byproducts WG501 + WG503, which passes both checks. `shift_live_update.py:25` agrees.
+
+**So the fix is a data correction, not a code change.** Update the `milling_version_mappings` row for BRF2 to `scales=["WG502"]`, `formula="WG502"`, `scale1="WG501"`, `scale2="WG503"` — then A4 converges the two implementations onto a row that is finally right.
+
+**Impact:** order validation reads the database, so BRF2 orders have been confirming the **Bakery** stream's weight as if it were Brawny production. Worth checking with the mill how long that row has been wrong and whether past BRF2 confirmations need correcting in SAP.
+
+(The same DB edit that broke BRF2 also *fixed* BRF3 — the old hardcoded map had BRF3 with main WG501 and byproduct1 also WG501, a duplicate. So the table was being actively corrected; BRF2 looks like collateral damage from that pass.)
 
 The `auto_validator` column is listed for completeness only — that classifier is unreachable, so its disagreements cause no production symptoms and the module is deleted.
 
