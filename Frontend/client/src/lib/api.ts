@@ -886,3 +886,151 @@ export const systemApi = {
     }
   },
 };
+
+// ============================================================================
+// Dynamic configuration APIs (added in commit 0 — see backend/CONTRACTS.md)
+//
+// Stubs so both workstreams can add their client here without colliding on
+// this file. Fill in your own block; leave the other one alone.
+// ============================================================================
+
+// ---------------------------------------------------------------- Workstream A
+export interface ClassificationRule {
+  id: number;
+  rule_type: 'material_prefix' | 'plant_department';
+  match_value: string;   // '13', '14', '3130', or '*'
+  result_value: string;  // 'MILLING' | 'PACKING'
+  priority: number;
+  is_active: boolean;
+  description?: string | null;
+}
+
+export interface ClassificationRuleRequest {
+  id?: number;
+  rule_type: 'material_prefix' | 'plant_department';
+  match_value: string;
+  result_value: string;
+  priority?: number;
+  is_active?: boolean;
+  description?: string | null;
+}
+
+export const classificationApi = {
+  async getRules(): Promise<ClassificationRule[]> {
+    return getJSON<ClassificationRule[]>(getApiUrl('/api/classification/rules'), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  async createOrUpdateRule(
+    payload: ClassificationRuleRequest,
+  ): Promise<{ success: boolean; message: string }> {
+    return getJSON(getApiUrl('/api/classification/rules'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteRule(id: number): Promise<{ success: boolean; message: string }> {
+    return getJSON(getApiUrl(`/api/classification/rules/${id}`), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+};
+
+// ---------------------------------------------------------------- Workstream B
+export interface ScadaTag {
+  id: number;
+  tag: string;
+  category: 'INPUT' | 'MILLING' | 'WATER' | 'PACKING' | 'DAMAGED';
+  reading_type: 'hi_lo' | 'single' | 'average';
+  source_column?: string | null;
+  rollover_max?: number | null;
+  unit?: string | null;
+  is_pollable: boolean;
+  is_active: boolean;
+  emulator_seed: number;
+  display_name?: string | null;
+  sort_order: number;
+}
+
+export interface ScadaTagRequest extends Partial<ScadaTag> {
+  tag: string;
+  category: ScadaTag['category'];
+  reading_type: ScadaTag['reading_type'];
+}
+
+export const scadaConfigApi = {
+  async getTags(category?: string): Promise<ScadaTag[]> {
+    const suffix = category ? `?category=${encodeURIComponent(category)}` : '';
+    return getJSON<ScadaTag[]>(getApiUrl(`/api/scada-config/tags${suffix}`), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  async createOrUpdateTag(
+    payload: ScadaTagRequest,
+  ): Promise<{ success: boolean; message: string }> {
+    return getJSON(getApiUrl('/api/scada-config/tags'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteTag(id: number): Promise<{ success: boolean; message: string }> {
+    return getJSON(getApiUrl(`/api/scada-config/tags/${id}`), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+};
+
+export interface KpiDefinition {
+  id: number;
+  kpi_key: string;
+  display_name: string;
+  department: 'MILLING' | 'PACKING';
+  target_column?: string | null;
+  max_value?: number | null;
+  unit?: string | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface KpiDefinitionRequest extends Partial<KpiDefinition> {
+  kpi_key: string;
+  display_name: string;
+  department: KpiDefinition['department'];
+}
+
+export const kpiConfigApi = {
+  async getDefinitions(department?: string): Promise<KpiDefinition[]> {
+    const suffix = department ? `?department=${encodeURIComponent(department)}` : '';
+    return getJSON<KpiDefinition[]>(getApiUrl(`/api/kpi-config/definitions${suffix}`), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  async upsertDefinition(
+    payload: KpiDefinitionRequest,
+  ): Promise<{ success: boolean; message: string }> {
+    return getJSON(getApiUrl('/api/kpi-config/definitions'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteDefinition(id: number): Promise<{ success: boolean; message: string }> {
+    return getJSON(getApiUrl(`/api/kpi-config/definitions/${id}`), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+};
