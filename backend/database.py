@@ -30,7 +30,18 @@ EMBEDDED_EMULATOR_URL = "/api/emulator/latest"
 
 # =============================================================================
 
+def is_mssql_enabled() -> bool:
+    """
+    Whether SQL Server should be used.
+    Set MSSQL_ENABLED=false on machines without ODBC/SQL Server (demo/mock only).
+    Default true so production keeps current behavior.
+    """
+    return os.getenv("MSSQL_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
 # SQL Server (SCADA read-only). Override with MSSQL_URL in backend/.env
+# Engine is always created for import compatibility; connections are skipped when
+# MSSQL_ENABLED=false or when the driver/server is unavailable.
 mssql_connection_string = os.getenv(
     "MSSQL_URL",
     "mssql+pyodbc://Hercules:nl6oUpr@localhost/HerculesV2"

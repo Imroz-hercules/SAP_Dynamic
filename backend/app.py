@@ -408,25 +408,29 @@ def initialize_database_tables():
         print("🔧 Initializing database connections...")
         
         # Test MSSQL connection and create tables only if they don't exist
-        try:
-            with mssql_engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            
-            # Check if any key tables exist
-            key_tables = ['kpi_data', 'materials', 'order_validations', 'orders', 'process_orders', 'sync_interval_settings']
-            tables_exist = check_any_tables_exist(mssql_engine, key_tables, is_postgres=False)
-            
-            if not tables_exist:
-                print("📝 Creating MSSQL tables...")
-                KpiBase.metadata.create_all(mssql_engine)
-                MaterialBase.metadata.create_all(mssql_engine)
-                OrderValidation.metadata.create_all(mssql_engine)
-                OrderBase.metadata.create_all(mssql_engine)
-                create_process_order_schema()
-                print("✅ MSSQL tables created")
+        from database import is_mssql_enabled
+        if not is_mssql_enabled():
+            print("⚠️ MSSQL disabled (MSSQL_ENABLED=false) — skipping MSSQL init")
+        else:
+            try:
+                with mssql_engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
                 
-        except Exception as e:
-            print(f"⚠️ MSSQL connection issue: {e}")
+                # Check if any key tables exist
+                key_tables = ['kpi_data', 'materials', 'order_validations', 'orders', 'process_orders', 'sync_interval_settings']
+                tables_exist = check_any_tables_exist(mssql_engine, key_tables, is_postgres=False)
+                
+                if not tables_exist:
+                    print("📝 Creating MSSQL tables...")
+                    KpiBase.metadata.create_all(mssql_engine)
+                    MaterialBase.metadata.create_all(mssql_engine)
+                    OrderValidation.metadata.create_all(mssql_engine)
+                    OrderBase.metadata.create_all(mssql_engine)
+                    create_process_order_schema()
+                    print("✅ MSSQL tables created")
+                    
+            except Exception as e:
+                print(f"⚠️ MSSQL connection issue (demo/mock mode OK): {e}")
         
         # Test PostgreSQL connection and create tables only if they don't exist
         try:
@@ -494,12 +498,23 @@ def create_app():
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, ngrok-skip-browser-warning'
         return response
 
-    # ----------------- Ensure MSSQL tables exist -----------------
-    KpiBase.metadata.create_all(mssql_engine)
-    MaterialBase.metadata.create_all(mssql_engine)
-    OrderValidation.metadata.create_all(mssql_engine)
-    OrderBase.metadata.create_all(mssql_engine)
-    create_process_order_schema()
+    # ----------------- Ensure MSSQL tables exist (optional) -----------------
+    # Skip when MSSQL_ENABLED=false, or when ODBC/SQL Server is missing (demo machines).
+    from database import is_mssql_enabled
+    if not is_mssql_enabled():
+        print("⚠️ MSSQL disabled (MSSQL_ENABLED=false) — using Postgres + demo/mock only")
+    else:
+        try:
+            with mssql_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            KpiBase.metadata.create_all(mssql_engine)
+            MaterialBase.metadata.create_all(mssql_engine)
+            OrderValidation.metadata.create_all(mssql_engine)
+            OrderBase.metadata.create_all(mssql_engine)
+            create_process_order_schema()
+            print("✅ MSSQL tables verified")
+        except Exception as e:
+            print(f"⚠️ MSSQL unavailable (demo/mock mode OK): {e}")
     
     # ✅ CRITICAL: Ensure milling_version_mappings table exists in PostgreSQL
     from models.milling_version_mapping import MillingVersionMapping
