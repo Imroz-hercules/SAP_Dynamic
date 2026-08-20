@@ -5864,8 +5864,74 @@ def is_order_validating(ponumber: str) -> bool:
     state = get_order_validation_state(ponumber)
     return state.get("isrunning", False)
 
-TOLERANCE_PCT = 0.0
-WORKER_SLEEP_SECONDS = 60
+# =============================================================================
+# VALIDATOR TUNING  (A5)
+# =============================================================================
+# This is where TOLERANCE_PCT = 0.0 and WORKER_SLEEP_SECONDS = 60 used to live.
+# Both were dead — defined here and read nowhere in the backend — and neither
+# described the worker's real behaviour: it sleeps 1 second, not 60, and applies
+# no tolerance at all. Migrating them into system_settings would have produced
+# two controls that changed nothing, so they were deleted.
+#
+# The interval below is the live one. It replaces the local WORKER_WAIT = 1 in
+# auto_validation_worker, and is read once per cycle rather than at import, so a
+# change takes effect on the next cycle without a restart.
+
+AUTO_VALIDATOR_INTERVAL_KEY = "auto_validator_interval_seconds"
+AUTO_VALIDATOR_INTERVAL_DEFAULT = 1.0
+AUTO_VALIDATOR_INTERVAL_MIN = 0.1   # below this the loop is effectively a busy-spin
+AUTO_VALIDATOR_INTERVAL_MAX = 60.0  # above this confirmations lag behind the sleep
+
+# get_setting opens a fresh DB session per call and the worker loops once a
+# second per running order, so the value is cached briefly between reads.
+_AUTO_VALIDATOR_INTERVAL_TTL = 10.0
+_auto_validator_interval_cache = {"value": AUTO_VALIDATOR_INTERVAL_DEFAULT, "read_at": 0.0}
+_auto_validator_interval_lock = threading.Lock()
+
+
+def get_auto_validator_interval() -> float:
+    """
+    Seconds the auto-validation worker sleeps between cycles.
+
+    Stored in `system_settings` under `auto_validator_interval_seconds`. Clamped
+    to [AUTO_VALIDATOR_INTERVAL_MIN, AUTO_VALIDATOR_INTERVAL_MAX]: 0 would turn
+    the worker into a busy-spin, and a very large value would leave SAP
+    confirmations waiting behind the sleep.
+
+    Falls back to the default on any read or parse failure — the worker must
+    keep running even if the settings table is unreachable.
+    """
+    now = time.time()
+    with _auto_validator_interval_lock:
+        if now - _auto_validator_interval_cache["read_at"] < _AUTO_VALIDATOR_INTERVAL_TTL:
+            return _auto_validator_interval_cache["value"]
+
+    value = AUTO_VALIDATOR_INTERVAL_DEFAULT
+    try:
+        from models.system_settings import get_setting
+        value = float(get_setting(AUTO_VALIDATOR_INTERVAL_KEY, AUTO_VALIDATOR_INTERVAL_DEFAULT))
+    except (TypeError, ValueError) as exc:
+        print(f"⚠️ [validator] {AUTO_VALIDATOR_INTERVAL_KEY} is not a number ({exc}) — "
+              f"using {AUTO_VALIDATOR_INTERVAL_DEFAULT}s")
+    except Exception as exc:
+        print(f"⚠️ [validator] Could not read {AUTO_VALIDATOR_INTERVAL_KEY} ({exc}) — "
+              f"using {AUTO_VALIDATOR_INTERVAL_DEFAULT}s")
+
+    clamped = min(max(value, AUTO_VALIDATOR_INTERVAL_MIN), AUTO_VALIDATOR_INTERVAL_MAX)
+    if clamped != value:
+        print(f"⚠️ [validator] {AUTO_VALIDATOR_INTERVAL_KEY}={value} is out of range — "
+              f"clamped to {clamped}s")
+
+    with _auto_validator_interval_lock:
+        _auto_validator_interval_cache["value"] = clamped
+        _auto_validator_interval_cache["read_at"] = now
+    return clamped
+
+
+def invalidate_auto_validator_interval() -> None:
+    """Drop the cached interval so the next cycle re-reads it immediately."""
+    with _auto_validator_interval_lock:
+        _auto_validator_interval_cache["read_at"] = 0.0
 
 
 # =============================================================================
@@ -8976,12 +9042,19 @@ def auto_validation_worker(po_number: str, classification: Dict):
     """
     print(f"✅ [Worker-{po_number}] Auto-validator worker started")
     sap_service = SAPConfirmationService()
-    WORKER_WAIT = 1
+    WORKER_WAIT = get_auto_validator_interval()
     order_completed_normally = False
     first_cycle = True
+    print(f"⏱️ [Worker-{po_number}] Cycle interval: {WORKER_WAIT}s "
+          f"(system_settings.{AUTO_VALIDATOR_INTERVAL_KEY})")
 
     try:
         while True:
+            # ✅ A5: re-read the interval each cycle so changing it in
+            # system_settings takes effect without restarting the app. Cached
+            # for a few seconds inside, so this is not a query per cycle.
+            WORKER_WAIT = get_auto_validator_interval()
+
             # Stop check
             if not is_order_validating(po_number):
                 if not first_cycle:

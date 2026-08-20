@@ -72,6 +72,15 @@ DEFAULT_SETTINGS = {
         "value_type": "json",
         "description": "List of active SCADA tags in emulator"
     },
+
+    # Validator Tuning (A5)
+    "auto_validator_interval_seconds": {
+        "value": "1",
+        "value_type": "float",
+        "description": "Seconds the auto-validation worker sleeps between cycles. "
+                       "Read once per cycle, so a change applies without a restart. "
+                       "Clamped to 0.1-60."
+    },
 }
 
 
