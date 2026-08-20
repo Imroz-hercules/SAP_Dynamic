@@ -5606,7 +5606,11 @@ from services.scale_service import (
 from services.sap_confirmation import SAPConfirmationService
 from services.error_logger import log_order_error
 from services import baseline_guard  # A7: unmapped-tag guard for baselines
-from services.classification_service import resolve_order_type  # A1: rules-driven routing
+from services.classification_service import (  # A1 / A3
+    classify_order,        # noqa: F401 - re-exported; CONTRACTS.md freezes this path
+    invalidate_cache as invalidate_classification_cache,
+    resolve_order_type,
+)
 from services.auth_service import optional_auth
 from services.system_logger import system_logger
 from services.scale_lock_service import (
@@ -6298,194 +6302,20 @@ def evaluate_formula_using_deltas(formula: str, deltas: Mapping[str, float]) -> 
         print(f"⚠️ Failed to evaluate formula '{formula}' with deltas {deltas}: {e}")
         return 0.0
 
-def classify_order(order) -> Dict[str, Any]:
-    """
-    Classification logic for MILLING & PACKING:
+# =============================================================================
+# classify_order  (A3)
+# =============================================================================
+# The implementation moved to services/classification_service.py, behind a TTL
+# cache. It is re-exported at the top of this module rather than left here,
+# because CONTRACTS.md freezes `from routes.order_validation import
+# classify_order` - five modules import it from this path, two of them
+# Workstream B's (routes/scada_routes.py:501, services/scale_lock_service.py:1187).
+#
+# Why it needed a cache: the auto-validation worker loops roughly once a SECOND
+# per running order, and update_order_scales re-derived the classification its
+# caller already held. Measured before A3: 71 scans of palletizer_mapping in 60s
+# for a single running PACKING order.
 
-    - MILLING (fully dynamic):
-        ✔ Scales from milling_version_mappings.scales
-        ✔ Formula from milling_version_mappings.formula
-        ✔ Byproduct scale1/2/3 from milling_version_mappings
-
-    - PACKING (unchanged):
-        ✔ PL → SCADA mapping
-        ✔ Bag size, pallets info
-    """
-
-    material_code = str(order.material or "").strip()
-    version = (order.version or "").upper().strip()
-    
-    # ✅ FIX: Strip "V" prefix from version if present (e.g., "VBKL1" -> "BKL1")
-    # The "V" prefix indicates "version" but the actual version code in database is without it
-    version_clean = version
-    if version.startswith("V") and len(version) > 1:
-        version_clean = version[1:]  # Remove "V" prefix
-        print(f"🔍 [classify_order] Stripped 'V' prefix from version: '{version}' -> '{version_clean}'")
-
-    result = {
-        "order_type": None,
-        "equipment": [],     # Main confirmed-weight scales
-        "formula": "",
-        "version": version_clean,  # Use cleaned version in result
-        "byproduct": {},     # scale1/scale2/scale3
-        "packing_info": {},
-        "error": None
-    }
-
-    # ---------------------------------------------------------
-    # MATERIAL PREFIX → MILLING / PACKING
-    # ---------------------------------------------------------
-    material_stripped = material_code.lstrip("0")
-    if len(material_stripped) < 2:
-        result["error"] = f"Invalid material code: {material_code}"
-        return result
-
-    # ✅ A1: was `prefix == "13"` / `"14"` hardcoded here. Now resolved against
-    # the classification_rules table, so a new prefix is a row, not a deploy.
-    result["order_type"] = resolve_order_type(material_code)
-
-    if not result["order_type"]:
-        result["error"] = (
-            f"No classification rule matches material {material_code} "
-            f"(prefix '{material_stripped[:2]}'). Add a rule under "
-            f"Material Map, or via POST /api/classification/rules."
-        )
-        print(f"❌ [classify_order] {result['error']}")
-        return result
-
-    # =========================================================
-    #             ✔✔✔ MILLING — NOW 100% DYNAMIC
-    # =========================================================
-    if result["order_type"] == "MILLING":
-        from models.milling_version_mapping import MillingVersionMapping
-
-        # Validate version is not empty
-        if not version_clean:
-            result["error"] = f"Version is empty or missing for order"
-            print(f"❌ [classify_order] Version is empty for material {material_code}")
-            return result
-
-        try:
-            with _mapping_db_session() as db:
-                mapping = (
-                    db.query(MillingVersionMapping)
-                      .filter(MillingVersionMapping.version == version_clean)  # ✅ Use version_clean
-                      .first()
-                )
-        except Exception as e:
-            error_msg = f"Database error querying milling mapping for version '{version_clean}' (original: '{version}'): {e}"
-            print(f"❌ [classify_order] {error_msg}")
-            result["error"] = error_msg
-            return result
-
-        if not mapping:
-            error_msg = f"No milling mapping found for version '{version_clean}' (original: '{version}'). Please add it via /api/milling-mapping"
-            print(f"❌ [classify_order] {error_msg}")
-            result["error"] = error_msg
-            return result
-
-        # ---------------------------
-        # MAIN SCALE LIST
-        # ---------------------------
-        scales_raw = mapping.scales
-        
-        # ✅ CRITICAL FIX: Ensure scales is a proper list, not a JSON string
-        # SQLAlchemy JSON columns should auto-deserialize, but handle edge cases
-        if scales_raw is None:
-            result["equipment"] = []
-        elif isinstance(scales_raw, str):
-            import json
-            try:
-                result["equipment"] = json.loads(scales_raw)
-                print(f"🔧 [classify_order] Parsed scales string as JSON: {result['equipment']}")
-            except json.JSONDecodeError:
-                # If it's a comma-separated string, split it
-                result["equipment"] = [s.strip() for s in scales_raw.split(",") if s.strip()]
-                print(f"🔧 [classify_order] Parsed scales as comma-separated: {result['equipment']}")
-        elif isinstance(scales_raw, list):
-            result["equipment"] = scales_raw
-        else:
-            result["equipment"] = [scales_raw] if scales_raw else []
-
-        # ---------------------------
-        # FORMULA
-        # ---------------------------
-        result["formula"] = mapping.formula or ""
-
-        # ---------------------------
-        # BYPRODUCT scale1/2/3
-        # ---------------------------
-        result["byproduct"] = {
-            "scale1": mapping.scale1,
-            "scale2": mapping.scale2,
-            "scale3": mapping.scale3
-        }
-
-        return result
-
-    # =========================================================
-    #                   PACKING (UNCHANGED)
-    # =========================================================
-    try:
-        from models.palletizer_mapping import PalletizerMapping
-
-        with _db_session() as db:
-            mapping = db.query(PalletizerMapping).filter(
-                PalletizerMapping.version == version_clean  # ✅ Use version_clean
-            ).first()
-
-        if not mapping:
-            result["error"] = f"No palletizer mapping found for version {version_clean} (original: {version})"
-            return result
-
-        # ✅ A2: the SCADA tag comes from the row, not from a hardcoded map.
-        # An unmapped line is now an error naming the version, instead of an
-        # empty equipment list that surfaced later as "No main equipment mapped".
-        if not mapping.scada_tag:
-            result["error"] = (
-                f"Packing version {version_clean} is mapped to line "
-                f"'{mapping.palletizer}' but that line has no SCADA tag. Set one "
-                f"in Palletizer Mapping."
-            )
-            print(f"❌ [classify_order] {result['error']}")
-            return result
-
-        result["equipment"] = [mapping.scada_tag]
-        result["formula"] = ""
-
-        result["packing_info"] = {
-            # ✅ A1: packing_line and bag_size added. process_order_pull.py read
-            # them off the TOP level of this dict, where they have never existed,
-            # so process_orders.packing_line and .bag_size have been NULL for
-            # every order ever pulled — and the UI has a "Packing Line:" row that
-            # has always rendered blank. Additive, so the four modules reading
-            # this shape are unaffected.
-            "packing_line": mapping.palletizer,
-            "scada_tag": mapping.scada_tag,
-
-            # ✅ A2: the two correctly-named values. `bags_per_pallet_actual` is
-            # the delta multiplier; `bag_weight_kg` is the weight of one bag.
-            # The three below them are the transposed originals, still published
-            # because PalletizerMapping.tsx and lib/api.ts read those names.
-            "bags_per_pallet_actual": mapping.multiplier(),
-            "bag_weight_kg": float(mapping.bag_weight_kg or mapping.kg_per_pallet or 0),
-            "bag_size": (
-                str(int(mapping.bag_weight_kg or mapping.kg_per_pallet))
-                if (mapping.bag_weight_kg or mapping.kg_per_pallet) else None
-            ),
-
-            "bag_size_kg": float(mapping.bag_size_kg or 0),
-            "bags_per_pallet": float(mapping.bags_per_pallet or 0),  # ✅ FIX: Use float, not int
-            "kg_per_pallet": float(mapping.kg_per_pallet or 0),
-            "description": f"{version_clean} → {mapping.palletizer}"
-        }
-
-    except Exception as e:
-        print(f"❌ Error querying palletizer mapping for {version_clean} (original: {version}): {e}")
-        result["error"] = f"Database error: {e}"
-        return result
-
-    return result
 
 def get_all_scales_for_order(order, classification: Dict, include_byproduct: bool = False) -> List[str]:
     """
@@ -7204,7 +7034,7 @@ def check_order_completion(order, classification: Dict) -> Dict[str, Any]:
         "overflow": round(overflow, 3),  # Report overflow for storage
         "unit": unit
     }
-def update_order_scales(order, deltas: Dict) -> None:
+def update_order_scales(order, deltas: Dict, classification: Optional[Dict] = None) -> None:
     """
     Update scale quantities.
 
@@ -7215,6 +7045,11 @@ def update_order_scales(order, deltas: Dict) -> None:
     ✔ PACKING:
         - Convert pallets -> bags
         - Update scale1/2/3 quantities dynamically
+
+    ✅ A3: `classification` is optional and should be passed whenever the caller
+    already has it — both callers do. This function used to re-derive it, which
+    for a PACKING order meant a fresh classify_order once per worker cycle, i.e.
+    roughly once a second, for a value the caller was already holding.
     """
 
     order_type = (get_attr_safe(order, "order_type", "") or "").strip().upper()
@@ -7233,8 +7068,10 @@ def update_order_scales(order, deltas: Dict) -> None:
     # PACKING — UPDATE SCALE QUANTITIES (PALLETS → BAGS)
     # --------------------------------------------------------
     if order_type == "PACKING":
-        classification = classify_order(order)
-        packing_info = classification.get("packing_info", {})
+        # ✅ A3: use what the caller already resolved; only classify if it did not.
+        if classification is None:
+            classification = classify_order(order)
+        packing_info = classification.get("packing_info", {}) or {}
         # ✅ COMMENTED OUT: SCADA now sends bags directly, not palletizers
         # Use bags_per_pallet (e.g., 32 bags per palletizer) for conversion
         # Support fractional palletizers: 0.5 palletizer = 16 bags, 0.3 = 9.6 bags, etc.
@@ -10265,7 +10102,8 @@ def auto_validation_worker(po_number: str, classification: Dict):
                     try:
                         if order_type == "PACKING":
                             deltas_main = {}  # (Fill with your normal scale-deltas logic)
-                            update_order_scales(current_order, deltas_main)
+                            # ✅ A3: pass the classification the worker already holds.
+                            update_order_scales(current_order, deltas_main, classification)
                     except Exception as e:
                         print(f"⚠️ [Worker-{po_number}] update_order_scales: {e}")
 
@@ -12480,7 +12318,8 @@ def get_progress(po_number: str):
 
             # ✅ CRITICAL: update_order_scales only updates scale1_qty, scale2_qty, scale3_qty
             # It does NOT modify confirmed_qty - confirmed_qty is only updated by the worker
-            update_order_scales(order, deltas)
+            # ✅ A3: pass the classification this request already resolved.
+            update_order_scales(order, deltas, classification)
 
             # ✅ OVERFLOW STORAGE: Store overflow for transfer to next order of same type
             if overflow > 0:
@@ -16111,6 +15950,10 @@ def palletizer_mapping():
             db.add(target)
         db.commit()
 
+        # ✅ A3: a mapping change must reach running orders now, not when the
+        # classification TTL happens to expire.
+        invalidate_classification_cache(version)
+
         message = "Mapping updated" if existing else "Mapping created"
         payload = {"success": True, "message": message,
                    "mode": "update" if existing else "create"}
@@ -16147,6 +15990,9 @@ def delete_palletizer_mapping(mapping_id: int):
             palletizer = mapping.palletizer
             db.delete(mapping)
             db.commit()
+
+            # ✅ A3: drop the cached classification for this version.
+            invalidate_classification_cache(version)
             
             print(f"✅ Deleted palletizer mapping: {version} - {palletizer} (ID: {mapping_id})")
             return jsonify({

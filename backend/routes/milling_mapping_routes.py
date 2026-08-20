@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from database import postgres_engine, PostgresSessionLocal
 from models.milling_version_mapping import MillingVersionMapping
+from services.classification_service import invalidate_cache  # A3: drop cached classifications on write
 
 milling_bp = Blueprint("milling_mapping", __name__)
 
@@ -89,6 +90,9 @@ def add_milling_mapping():
         print(f"✅ Added milling mapping: id={mapping_id}, version={new_mapping.version}, scales={new_mapping.scales}")
         
         session.commit()
+        # ✅ A3: a mapping change must reach running orders now, not
+        #    when the classification TTL happens to expire.
+        invalidate_cache()
         
         # ✅ CRITICAL: Verify it was actually saved by querying it back
         verify_mapping = session.query(MillingVersionMapping).filter(
@@ -158,6 +162,9 @@ def update_milling_mapping(id):
             mapping.scada_recipe_name = (data.get("scada_recipe_name") or "").strip() or None
 
         session.commit()
+        # ✅ A3: a mapping change must reach running orders now, not
+        #    when the classification TTL happens to expire.
+        invalidate_cache()
 
         return jsonify({"message": "Mapping updated successfully"}), 200
 
@@ -183,6 +190,9 @@ def delete_milling_mapping(id):
 
         session.delete(mapping)
         session.commit()
+        # ✅ A3: a mapping change must reach running orders now, not
+        #    when the classification TTL happens to expire.
+        invalidate_cache()
 
         return jsonify({"message": "Mapping deleted"}), 200
 

@@ -28,6 +28,7 @@ STATUS
 """
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time
@@ -187,26 +188,280 @@ def resolve_department(plant: str) -> Optional[str]:
 
 
 # =============================================================================
-# A3 - not yet implemented
+# Classification  (A3)
 # =============================================================================
+#
+# Moved here from routes/order_validation.py, which now re-exports it. That
+# import path is frozen by CONTRACTS.md - routes/scada_routes.py:501 is
+# Workstream B's file and imports it from there.
+#
+# The cache is load-bearing, not an optimisation. The auto-validation worker
+# loops roughly once a SECOND per running order (WORKER_WAIT, not the 60s the
+# master plan assumed), and every cycle reached this function. Measured before
+# the change: 71 scans of palletizer_mapping in 60s for one running PACKING
+# order.
+
+CLASSIFICATION_TTL_SECONDS = 45.0
+
+_classify_cache = {}
+_classify_lock = threading.Lock()
+
+# Counters, so the cache's effect is measurable without a profiler.
+_classify_stats = {"hits": 0, "misses": 0}
+
+
+def _empty_result(version: str, error: Optional[str] = None) -> Dict[str, Any]:
+    """The contract's return shape, with nothing resolved."""
+    return {
+        "order_type": None,
+        "equipment": [],
+        "formula": "",
+        "version": version,
+        "byproduct": {},
+        "packing_info": {},
+        "error": error,
+    }
+
 
 def classify_order(order: Any) -> Dict[str, Any]:
-    """Canonical classifier. See CONTRACT above for the required return shape."""
-    raise NotImplementedError("Workstream A - task A3")
+    """
+    Canonical classifier. See CONTRACT above for the required return shape.
+
+    - MILLING: scales, formula and byproduct scale1/2/3 from
+      `milling_version_mappings`
+    - PACKING: SCADA tag and bag maths from `palletizer_mapping` (A2 moved the
+      tag onto the row)
+
+    Results are cached for CLASSIFICATION_TTL_SECONDS, keyed on
+    (order_type, version) - nothing else varies the lookup. Mapping writes call
+    invalidate_cache(), so an edit in Material Map or Palletizer Mapping takes
+    effect on the next order classified rather than after the TTL.
+
+    A copy is returned on every call. Callers pass this dict around and the
+    auto-validation worker holds one for the life of its thread, so handing out
+    the cached object would let one caller's mutation reach every other.
+    """
+    material_code = str(getattr(order, "material", "") or "").strip()
+    version = str(getattr(order, "version", "") or "").upper().strip()
+
+    # The `version` key of the result has always carried the V-stripped form,
+    # on the error paths as well as the successful ones.
+    version_clean = version[1:] if (version.startswith("V") and len(version) > 1) else version
+
+    # Cheap, material-specific failures are answered without touching the cache
+    # or the database.
+    material_stripped = normalise_material(material_code)
+    if len(material_stripped) < 2:
+        return _empty_result(version_clean, error=f"Invalid material code: {material_code}")
+
+    order_type = resolve_order_type(material_code)
+    if not order_type:
+        error = (
+            f"No classification rule matches material {material_code} "
+            f"(prefix '{material_stripped[:2]}'). Add a rule under "
+            f"Material Map, or via POST /api/classification/rules."
+        )
+        log.warning(error)
+        return _empty_result(version_clean, error=error)
+
+    # The RAW version is part of the key, not the V-stripped one, so a cached
+    # error message still names the version the caller actually passed.
+    key = (order_type, version)
+    now = time.time()
+
+    with _classify_lock:
+        entry = _classify_cache.get(key)
+        if entry is not None and (now - entry[0]) < CLASSIFICATION_TTL_SECONDS:
+            _classify_stats["hits"] += 1
+            return copy.deepcopy(entry[1])
+        _classify_stats["misses"] += 1
+
+    result = _classify_uncached(order_type, version)
+
+    with _classify_lock:
+        _classify_cache[key] = (now, copy.deepcopy(result))
+
+    return result
+
+
+def _classify_uncached(order_type: str, version: str) -> Dict[str, Any]:
+    """
+    The database half. Depends only on (order_type, version), which is what
+    makes the cache key correct.
+    """
+    from database import PostgresSessionLocal
+
+    # Strip a "V" prefix if present ("VBKL1" -> "BKL1"). The "V" means
+    # "version"; the code stored in the database is without it.
+    version_clean = version
+    if version.startswith("V") and len(version) > 1:
+        version_clean = version[1:]
+        log.debug("Stripped 'V' prefix from version: '%s' -> '%s'", version, version_clean)
+
+    result = _empty_result(version_clean)
+    result["order_type"] = order_type
+
+    # =========================================================
+    #                        MILLING
+    # =========================================================
+    if order_type == "MILLING":
+        from models.milling_version_mapping import MillingVersionMapping
+
+        if not version_clean:
+            result["error"] = "Version is empty or missing for order"
+            log.warning(result["error"])
+            return result
+
+        try:
+            with PostgresSessionLocal() as db:
+                mapping = (
+                    db.query(MillingVersionMapping)
+                      .filter(MillingVersionMapping.version == version_clean)
+                      .first()
+                )
+        except Exception as exc:
+            result["error"] = (
+                f"Database error querying milling mapping for version "
+                f"'{version_clean}' (original: '{version}'): {exc}"
+            )
+            log.error(result["error"])
+            return result
+
+        if not mapping:
+            result["error"] = (
+                f"No milling mapping found for version '{version_clean}' "
+                f"(original: '{version}'). Please add it via /api/milling-mapping"
+            )
+            log.warning(result["error"])
+            return result
+
+        # MAIN SCALE LIST. SQLAlchemy JSON columns should auto-deserialize, but
+        # rows written by older code can hold a string.
+        scales_raw = mapping.scales
+        if scales_raw is None:
+            result["equipment"] = []
+        elif isinstance(scales_raw, str):
+            import json
+            try:
+                result["equipment"] = json.loads(scales_raw)
+            except json.JSONDecodeError:
+                result["equipment"] = [s.strip() for s in scales_raw.split(",") if s.strip()]
+            log.debug("Parsed scales for %s from a string: %s", version_clean, result["equipment"])
+        elif isinstance(scales_raw, list):
+            result["equipment"] = scales_raw
+        else:
+            result["equipment"] = [scales_raw] if scales_raw else []
+
+        result["formula"] = mapping.formula or ""
+        result["byproduct"] = {
+            "scale1": mapping.scale1,
+            "scale2": mapping.scale2,
+            "scale3": mapping.scale3,
+        }
+        return result
+
+    # =========================================================
+    #                        PACKING
+    # =========================================================
+    from models.palletizer_mapping import PalletizerMapping
+
+    try:
+        with PostgresSessionLocal() as db:
+            mapping = (
+                db.query(PalletizerMapping)
+                  .filter(PalletizerMapping.version == version_clean)
+                  .first()
+            )
+
+            if not mapping:
+                result["error"] = (
+                    f"No palletizer mapping found for version {version_clean} "
+                    f"(original: {version})"
+                )
+                return result
+
+            # A2: the SCADA tag comes from the row, not a hardcoded map. An
+            # unmapped line is an error naming the version, instead of an empty
+            # equipment list that surfaced later as "No main equipment mapped".
+            if not mapping.scada_tag:
+                result["error"] = (
+                    f"Packing version {version_clean} is mapped to line "
+                    f"'{mapping.palletizer}' but that line has no SCADA tag. "
+                    f"Set one in Palletizer Mapping."
+                )
+                log.warning(result["error"])
+                return result
+
+            result["equipment"] = [mapping.scada_tag]
+            result["formula"] = ""
+            result["packing_info"] = {
+                # A1: packing_line and bag_size. process_order_pull.py read
+                # these off the TOP level of this dict, where they never
+                # existed, so both columns were NULL for every order ever
+                # pulled and the UI's "Packing Line:" row always rendered blank.
+                "packing_line": mapping.palletizer,
+                "scada_tag": mapping.scada_tag,
+
+                # A2: correctly-named values. The three below them are the
+                # transposed originals, still published because
+                # PalletizerMapping.tsx and lib/api.ts read those names.
+                "bags_per_pallet_actual": mapping.multiplier(),
+                "bag_weight_kg": float(mapping.bag_weight_kg or mapping.kg_per_pallet or 0),
+                "bag_size": (
+                    str(int(mapping.bag_weight_kg or mapping.kg_per_pallet))
+                    if (mapping.bag_weight_kg or mapping.kg_per_pallet) else None
+                ),
+
+                "bag_size_kg": float(mapping.bag_size_kg or 0),
+                "bags_per_pallet": float(mapping.bags_per_pallet or 0),
+                "kg_per_pallet": float(mapping.kg_per_pallet or 0),
+                "description": f"{version_clean} → {mapping.palletizer}",
+            }
+    except Exception as exc:
+        log.error("Error querying palletizer mapping for %s (original: %s): %s",
+                  version_clean, version, exc)
+        result["error"] = f"Database error: {exc}"
+        return result
+
+    return result
 
 
 def invalidate_cache(version: Optional[str] = None) -> None:
     """
     Drop cached classification results.
 
-    classify_order runs roughly once per second per running order (the worker
-    loop interval, not the 60s originally assumed) and once per order on every
-    SAP pull, so it needs a TTL cache to avoid a query per order per second.
-    Call this from the mapping CRUD routes after a write, otherwise an edit in
-    MaterialMap will not take effect until the TTL expires.
+    Called from the mapping CRUD routes after a write. Without it, an edit in
+    Material Map or Palletizer Mapping would not reach running orders for up to
+    CLASSIFICATION_TTL_SECONDS.
 
-    Note: this is for the *version -> scales* cache, added in A3. The
-    *classification rules* cache is separate and already live - see
-    invalidate_rules_cache().
+    Pass a version to drop just that one; pass nothing to drop everything.
+
+    Note: this is the *version -> scales* cache. The *classification rules*
+    cache is separate - see invalidate_rules_cache().
     """
-    raise NotImplementedError("Workstream A - task A3")
+    with _classify_lock:
+        if version is None:
+            _classify_cache.clear()
+            return
+        wanted = str(version).upper().strip()
+        # A version can be cached under both its raw and V-prefixed forms.
+        for key in [k for k in _classify_cache if k[1] in (wanted, f"V{wanted}")]:
+            _classify_cache.pop(key, None)
+
+
+def cache_stats() -> Dict[str, Any]:
+    """Hit/miss counters and current size. Used by the tests and the debug route."""
+    with _classify_lock:
+        return {
+            "hits": _classify_stats["hits"],
+            "misses": _classify_stats["misses"],
+            "entries": len(_classify_cache),
+            "ttl_seconds": CLASSIFICATION_TTL_SECONDS,
+        }
+
+
+def reset_cache_stats() -> None:
+    """Zero the hit/miss counters. Does not drop cached entries."""
+    with _classify_lock:
+        _classify_stats["hits"] = 0
+        _classify_stats["misses"] = 0
