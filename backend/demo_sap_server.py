@@ -8,15 +8,29 @@ Run from the backend folder (venv active):
 
 Listens on port 6000 (matches SAP_MOCK_URL=http://localhost:6000/mock).
 
+Postgres credentials come from backend/.env POSTGRES_URL (same user/password/host
+as the app). Tables live in a separate DB (default name: demo_server) so mock
+SAP data does not mix with the app `sap` database. Override with DEMO_SAP_DB.
+
 Requirements:
-  pip install flask psycopg2-binary
+  pip install flask psycopg2-binary python-dotenv
 """
 
+import os
 import threading
 import json
 import time
 from datetime import datetime
+from pathlib import Path
 from queue import Queue, Empty
+from urllib.parse import urlparse, unquote
+
+# Load backend/.env before reading credentials
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
 
 # Flask
 from flask import Flask, request, jsonify
@@ -30,16 +44,47 @@ import psycopg2
 import psycopg2.extras
 
 # -------------------------
-# CONFIG: Edit if needed
+# CONFIG — from POSTGRES_URL / env
 # -------------------------
-PG_HOST = "localhost"
-PG_PORT = 5432
-PG_DB = "demo_server"
-PG_USER = "postgres"
-PG_PASS = "Hercules"
 
-FLASK_PORT = 6000
+def _pg_settings_from_env():
+    """
+    Reuse host/user/password/port from POSTGRES_URL.
+    Database name defaults to demo_server (not the app DB).
+    """
+    url = os.getenv("POSTGRES_URL", "").strip()
+    host, port, user, password = "localhost", 5432, "postgres", ""
+    if url:
+        # sqlalchemy style: postgresql+psycopg2://user:pass@host:port/db
+        normalized = url.replace("postgresql+psycopg2://", "postgresql://", 1)
+        parsed = urlparse(normalized)
+        if parsed.hostname:
+            host = parsed.hostname
+        if parsed.port:
+            port = parsed.port
+        if parsed.username:
+            user = unquote(parsed.username)
+        if parsed.password:
+            password = unquote(parsed.password)
+    else:
+        host = os.getenv("PG_HOST", host)
+        port = int(os.getenv("PG_PORT", str(port)))
+        user = os.getenv("PG_USER", user)
+        password = os.getenv("PG_PASS", password)
+
+    db = os.getenv("DEMO_SAP_DB", "demo_server").strip() or "demo_server"
+    return host, port, user, password, db
+
+
+PG_HOST, PG_PORT, PG_USER, PG_PASS, PG_DB = _pg_settings_from_env()
+
+FLASK_PORT = int(os.getenv("DEMO_SAP_PORT", "6000"))
 AUTO_REFRESH_MS = 2000  # GUI auto-refresh interval
+
+print(
+    f"[demo_sap] Postgres {PG_USER}@{PG_HOST}:{PG_PORT}/{PG_DB} "
+    f"(password from POSTGRES_URL={'yes' if os.getenv('POSTGRES_URL') else 'no'})"
+)
 
 # -------------------------
 # Helpers: Postgres access
@@ -51,8 +96,31 @@ def get_conn():
         port=PG_PORT,
         dbname=PG_DB,
         user=PG_USER,
-        password=PG_PASS
+        password=PG_PASS,
     )
+
+
+def ensure_database_exists():
+    """Create DEMO_SAP_DB if missing (connect to 'postgres' maintenance DB)."""
+    try:
+        conn = psycopg2.connect(
+            host=PG_HOST,
+            port=PG_PORT,
+            dbname="postgres",
+            user=PG_USER,
+            password=PG_PASS,
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (PG_DB,))
+        if cur.fetchone() is None:
+            cur.execute(f'CREATE DATABASE "{PG_DB}"')
+            print(f"✅ Created database {PG_DB}")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️  Could not ensure database {PG_DB} exists: {e}")
+
 
 def init_db():
     """Create tables if not exist (safe even if you already created them)."""
@@ -664,6 +732,7 @@ class DemoSAPGUI:
 # -------------------------
 def main():
     # init DB (safe - creates tables if missing)
+    ensure_database_exists()
     init_db()
 
     # start Flask server in background thread
