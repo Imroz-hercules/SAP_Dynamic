@@ -182,7 +182,7 @@ export function WaterSystemLayout({ children, title, subtitle, onLogout }: Water
 
             {/* System Mode Indicator - Clickable when Demo Mode is active */}
             {isDemoMode ? (
-              <Link href="/admin?tab=demo">
+              <Link href="/engineering?tab=demo">
                 <div 
                   className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg backdrop-blur-sm border cursor-pointer transition-all hover:scale-105 hover:shadow-lg bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50`}
                   title="Click to open Demo Mode settings"
@@ -278,11 +278,11 @@ export function WaterSystemLayout({ children, title, subtitle, onLogout }: Water
               <ThemeToggle />
               {/* Settings button - Only visible for admin users */}
               {currentUser?.roles?.includes('admin') && (
-                <Link href="/admin">
+                <Link href="/engineering">
                   <button
                     className="p-2 rounded-lg bg-slate-800/50 light:bg-gray-100 hover:bg-slate-700/50 light:hover:bg-gray-200
                                text-slate-400 light:text-gray-600 hover:text-cyan-400 light:hover:text-blue-600 transition-colors"
-                    title="Admin Settings"
+                    title="Engineering settings"
                   >
                     <Settings className="h-4 w-4" />
                   </button>

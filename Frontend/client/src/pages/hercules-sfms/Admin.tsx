@@ -58,6 +58,22 @@ import { useToast } from '@/hooks/use-toast'
 import { LoginModal } from '@/components/LoginModal'
 import { shiftApi, type ShiftMaster, timeApi, type ServerTimeInfo } from '@/lib/api'
 import { useTextPreferences, FONT_FAMILY_OPTIONS } from '@/contexts/TextPreferencesContext'
+import { EngineeringConnectionTab } from './engineering/EngineeringConnectionTab'
+import { EngineeringTagsTab } from './engineering/EngineeringTagsTab'
+import { EngineeringKpiTab } from './engineering/EngineeringKpiTab'
+
+const ENGINEERING_TABS = [
+  'connection',
+  'demo',
+  'tags',
+  'kpi',
+  'system',
+  'shifts',
+  'sap',
+  'email',
+  'branding',
+  'logs',
+] as const
 
 interface SMTPProfile {
   id: string
@@ -339,15 +355,22 @@ export function Admin() {
   const { toast } = useToast()
   const [location] = useLocation()
   
-  // Get tab from URL query parameter (e.g., /admin?tab=demo)
+  // Get tab from URL query parameter (e.g., /engineering?tab=demo)
   const getTabFromUrl = () => {
     const params = new URLSearchParams(window.location.search)
     const tab = params.get('tab')
-    const validTabs = ['system', 'shifts', 'sap', 'email', 'branding', 'demo', 'logs']
-    return tab && validTabs.includes(tab) ? tab : 'system'
+    return tab && (ENGINEERING_TABS as readonly string[]).includes(tab) ? tab : 'connection'
   }
   
   const [activeTab, setActiveTab] = useState(getTabFromUrl)
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab)
+    const next = `/engineering?tab=${encodeURIComponent(tab)}`
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      window.history.replaceState(null, '', next)
+    }
+  }
   
   // Update active tab when URL changes
   useEffect(() => {
@@ -1951,8 +1974,8 @@ export function Admin() {
 
   return (
     <WaterSystemLayout 
-      title="Admin Panel" 
-      subtitle="System administration and configuration"
+      title="Engineering" 
+      subtitle="Plant configuration — connection, demo, SCADA tags, KPIs, and system settings"
       onLogout={handleLogout}
     >
       <div className="p-4 w-full h-full overflow-hidden flex flex-col">
@@ -2010,9 +2033,25 @@ export function Admin() {
           </div>
         )}
 
-        {/* Main Tabbed Content */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+        {/* Main Tabbed Content — all plant config lives on Engineering */}
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="flex-shrink-0 w-full justify-start gap-1 mb-4 flex-wrap h-auto p-1">
+            <TabsTrigger value="connection" className="flex items-center gap-2">
+              <WifiIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Connection</span>
+            </TabsTrigger>
+            <TabsTrigger value="demo" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              <span className="hidden sm:inline">Demo Mode</span>
+            </TabsTrigger>
+            <TabsTrigger value="tags" className="flex items-center gap-2">
+              <Gauge className="h-4 w-4" />
+              <span className="hidden sm:inline">SCADA Tags</span>
+            </TabsTrigger>
+            <TabsTrigger value="kpi" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">KPI Limits</span>
+            </TabsTrigger>
             <TabsTrigger value="system" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span className="hidden sm:inline">System</span>
@@ -2033,15 +2072,26 @@ export function Admin() {
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">Branding</span>
             </TabsTrigger>
-            <TabsTrigger value="demo" className="flex items-center gap-2">
-              <Server className="h-4 w-4" />
-              <span className="hidden sm:inline">Demo Mode</span>
-            </TabsTrigger>
             <TabsTrigger value="logs" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">SAP Logs</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* CONNECTION TAB (A8) */}
+          <TabsContent value="connection" className="flex-1 overflow-y-auto mt-0">
+            <EngineeringConnectionTab />
+          </TabsContent>
+
+          {/* SCADA TAGS TAB (B) */}
+          <TabsContent value="tags" className="flex-1 overflow-y-auto mt-0">
+            <EngineeringTagsTab />
+          </TabsContent>
+
+          {/* KPI LIMITS TAB (B) */}
+          <TabsContent value="kpi" className="flex-1 overflow-y-auto mt-0">
+            <EngineeringKpiTab />
+          </TabsContent>
 
           {/* SYSTEM TAB */}
           <TabsContent value="system" className="flex-1 overflow-y-auto mt-0">
@@ -2285,6 +2335,17 @@ export function Admin() {
           {/* SAP INTEGRATION TAB */}
           <TabsContent value="sap" className="flex-1 overflow-y-auto mt-0">
             <div className="space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-sm text-amber-200 light:text-amber-800 light:bg-amber-50 light:border-amber-200">
+                Live SAP / SQL Server URLs and credentials are on the{' '}
+                <button
+                  type="button"
+                  className="underline font-semibold"
+                  onClick={() => handleTabChange('connection')}
+                >
+                  Connection
+                </button>{' '}
+                tab. The fields below are legacy demo UI only.
+              </div>
               {/* Info Banner */}
               <div className="bg-slate-700/50 light:bg-blue-50 border border-cyan-500/30 light:border-blue-200 rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
