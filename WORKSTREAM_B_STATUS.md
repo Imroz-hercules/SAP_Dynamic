@@ -200,7 +200,7 @@ Demo mode — embedded SCADA emulator and mock SAP, no SQL Server, no VPN.
 
 cd backend && PYTHONIOENCODING=utf-8 python app.py      # :5000, admin / admin123
 cd Frontend && npm install && npx vite --port 5173      # proxies /api to :5000
-python demo_sap_server.py                               # mock SAP on :6000
+cd backend && python demo_sap_server.py                 # mock SAP on :6000
 ```
 
 `PYTHONIOENCODING=utf-8` is required — the code prints emoji at import and a

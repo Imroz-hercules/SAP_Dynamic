@@ -96,7 +96,7 @@ def main() -> int:
         "Next:\n"
         "  1. Confirm backend/.env has MSSQL_ENABLED=false\n"
         "  2. PYTHONIOENCODING=utf-8 python app.py\n"
-        "  3. python demo_sap_server.py   (mock SAP :6000)\n"
+        "  3. python demo_sap_server.py   (from backend/; mock SAP :6000)\n"
         "  4. cd ../Frontend && npx vite --port 5173\n"
     )
     return 0
