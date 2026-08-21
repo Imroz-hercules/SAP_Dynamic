@@ -3,7 +3,8 @@
 One-shot demo setup for Workstream B (no SQL Server required).
 
 Runs, in order:
-  1. migrate_a2_palletizer_mapping.py   — adds scada_tag columns (fixes check_unmapped_tags)
+  0. migrate_seed_demo_data.py          — fill empty scada_tags / kpi / mappings
+  1. migrate_a2_palletizer_mapping.py   — adds scada_tag columns
   2. migrate_b1_emulator_seeds.py       — emulator_seed values on scada_tags
   3. migrate_b3_activate_counters.py    — activate SL60x_COUNTER tags
   4. check_unmapped_tags.py             — A7 pre-deploy check
@@ -11,17 +12,11 @@ Runs, in order:
 Prerequisites
   * Postgres running and POSTGRES_URL set in backend/.env
   * MSSQL_ENABLED=false  (demo uses the embedded SCADA emulator)
-  * Tables seeded (setup_sap_postgres.sql) — if milling_version_mappings is 0 rows,
-    load the SQL seed first
+  * Repo CSVs at ../milling_version_mappings.csv and ../palletizer_mapping.csv
 
 Usage (from backend/, with venv active):
 
     python setup_demo_migrations.py
-
-Then start:
-    python app.py
-    python demo_sap_server.py          # from repo root or wherever it lives
-    cd ../Frontend && npx vite --port 5173
 """
 from __future__ import annotations
 
@@ -36,6 +31,24 @@ def _banner(title: str) -> None:
     print("\n" + "=" * 60)
     print(title)
     print("=" * 60)
+
+
+def _run(script: str, argv: list) -> int:
+    from pathlib import Path
+    here = Path(__file__).resolve().parent
+    path = here / script
+    if not path.exists():
+        print(f"ERROR: missing {path}")
+        return 1
+    sys.argv = argv
+    try:
+        runpy.run_path(str(path), run_name="__main__")
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    except Exception as exc:
+        print(f"{script} failed: {exc}")
+        return 1
+    return 0
 
 
 def main() -> int:
@@ -58,67 +71,25 @@ def main() -> int:
         print("ERROR: POSTGRES_URL is not set in backend/.env")
         return 1
 
-    here = Path(__file__).resolve().parent
+    steps = [
+        ("0/5  Seed empty tables (scada_tags, kpi, mappings)",
+         "migrate_seed_demo_data.py", ["migrate_seed_demo_data.py"]),
+        ("1/5  A2 — palletizer_mapping columns",
+         "migrate_a2_palletizer_mapping.py", ["migrate_a2_palletizer_mapping.py"]),
+        ("2/5  B1 — emulator seeds (--apply)",
+         "migrate_b1_emulator_seeds.py", ["migrate_b1_emulator_seeds.py", "--apply"]),
+        ("3/5  B3 — activate SL60x_COUNTER (--apply)",
+         "migrate_b3_activate_counters.py", ["migrate_b3_activate_counters.py", "--apply"]),
+        ("4/5  check_unmapped_tags.py",
+         "check_unmapped_tags.py", ["check_unmapped_tags.py"]),
+    ]
 
-    # --- 1. A2 (always writes columns; no --apply flag) ---------------------
-    _banner("1/4  A2 — palletizer_mapping columns")
-    sys.argv = ["migrate_a2_palletizer_mapping.py"]
-    try:
-        runpy.run_path(str(here / "migrate_a2_palletizer_mapping.py"), run_name="__main__")
-    except SystemExit as exc:
-        if exc.code not in (0, None):
-            print(f"A2 failed with exit {exc.code}")
-            return int(exc.code or 1)
-    except Exception as exc:
-        print(f"A2 failed: {exc}")
-        return 1
-
-    # --- 2. B1 emulator seeds -----------------------------------------------
-    _banner("2/4  B1 — emulator seeds (--apply)")
-    sys.argv = ["migrate_b1_emulator_seeds.py", "--apply"]
-    try:
-        runpy.run_path(str(here / "migrate_b1_emulator_seeds.py"), run_name="__main__")
-    except SystemExit as exc:
-        if exc.code not in (0, None):
-            return int(exc.code or 1)
-    except Exception as exc:
-        print(f"B1 failed: {exc}")
-        return 1
-
-    # --- 3. B3 activate counters --------------------------------------------
-    _banner("3/4  B3 — activate SL60x_COUNTER (--apply)")
-    sys.argv = ["migrate_b3_activate_counters.py", "--apply"]
-    try:
-        runpy.run_path(str(here / "migrate_b3_activate_counters.py"), run_name="__main__")
-    except SystemExit as exc:
-        if exc.code not in (0, None):
-            return int(exc.code or 1)
-    except Exception as exc:
-        print(f"B3 failed: {exc}")
-        return 1
-
-    # --- 4. Unmapped-tag check ----------------------------------------------
-    _banner("4/4  check_unmapped_tags.py")
-    sys.argv = ["check_unmapped_tags.py"]
-    try:
-        runpy.run_path(str(here / "check_unmapped_tags.py"), run_name="__main__")
-    except SystemExit as exc:
-        code = int(exc.code or 0)
+    for title, script, argv in steps:
+        _banner(title)
+        code = _run(script, argv)
         if code != 0:
-            print(
-                "\ncheck_unmapped_tags exited non-zero.\n"
-                "If milling_version_mappings showed 0 rows, seed the DB first:\n"
-                "  psql -U postgres -f ../setup_sap_postgres.sql\n"
-            )
+            print(f"\nStopped at {script} (exit {code})")
             return code
-    except Exception as exc:
-        print(f"check_unmapped_tags failed: {exc}")
-        print(
-            "\nIf the error is missing columns or 0 mapping rows, seed Postgres:\n"
-            "  psql -U postgres -f ../setup_sap_postgres.sql\n"
-            "then re-run: python setup_demo_migrations.py\n"
-        )
-        return 1
 
     _banner("Demo migrations complete")
     print(
