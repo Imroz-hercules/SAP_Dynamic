@@ -140,17 +140,12 @@ interface ShiftInfo {
 
 type ShiftType = 'milling' | 'packing'
 
-// Shift schedule definitions
-const SHIFT_SCHEDULES = {
-  milling: {
-    'Shift A': { start: '07:00', end: '15:00', name: 'Day Shift' },
-    'Shift B': { start: '15:00', end: '23:00', name: 'Evening Shift' },
-    'Shift C': { start: '23:00', end: '07:00', name: 'Night Shift' }
-  },
-  packing: {
-    'Shift A': { start: '07:30', end: '15:30', name: 'Day Shift' },
-    'Shift B': { start: '15:30', end: '23:30', name: 'Evening Shift' }
-  }
+// B6: no hardcoded shift fallback. Empty until /api/shifts loads.
+// Packing times come from the database seed (07:00–19:00 / 19:00–07:00),
+// not the old Admin.tsx 07:30–15:30 values — those disagreed with the seed.
+const EMPTY_SHIFT_MAPPINGS: Record<ShiftType, Record<string, ShiftInfo>> = {
+  milling: {},
+  packing: {},
 }
 
 // Helper function to get shift information (will be redefined inside component to use state)
@@ -460,8 +455,8 @@ export function Admin() {
 
   const isLoggedIn = !!localStorage.getItem('auth_token')
   
-  // Shift Mappings State
-  const [shiftMappings, setShiftMappings] = useState<Record<ShiftType, Record<string, ShiftInfo>>>(SHIFT_SCHEDULES)
+  // Shift Mappings State — empty until API responds (B6)
+  const [shiftMappings, setShiftMappings] = useState<Record<ShiftType, Record<string, ShiftInfo>>>(EMPTY_SHIFT_MAPPINGS)
   const [showAddShiftModal, setShowAddShiftModal] = useState(false)
   const [showEditShiftModal, setShowEditShiftModal] = useState(false)
   const [showDeleteShiftModal, setShowDeleteShiftModal] = useState(false)
@@ -508,18 +503,12 @@ export function Admin() {
     enabled: !!localStorage.getItem('auth_token')
   })
 
-  // Fetch shifts from API
-  const { data: shiftsData, refetch: refetchShifts } = useQuery({
+  // Fetch shifts from API — on failure show empty/error, never fabricated times (B6)
+  const { data: shiftsData, refetch: refetchShifts, isError: shiftsFetchError, isLoading: shiftsLoading } = useQuery({
     queryKey: ['/api/shifts'],
-    queryFn: async () => {
-      try {
-        return await shiftApi.getShifts()
-      } catch (error) {
-        console.error('Error fetching shifts:', error)
-        return []
-      }
-    },
-    select: (data) => data || []
+    queryFn: () => shiftApi.getShifts(),
+    select: (data) => data || [],
+    retry: 1,
   })
 
   // Fetch server time
@@ -604,6 +593,13 @@ export function Admin() {
 
   // Transform API shifts data to local state format
   React.useEffect(() => {
+    if (shiftsFetchError) {
+      setShiftMappings(EMPTY_SHIFT_MAPPINGS)
+      return
+    }
+    if (shiftsLoading) {
+      return
+    }
     if (shiftsData && shiftsData.length > 0) {
       const transformed: Record<ShiftType, Record<string, ShiftInfo>> = {
         milling: {},
@@ -630,7 +626,7 @@ export function Admin() {
       // If no shifts in database, use empty mappings
       setShiftMappings({ milling: {}, packing: {} })
     }
-  }, [shiftsData])
+  }, [shiftsData, shiftsFetchError, shiftsLoading])
 
   // Update local state when data is fetched
   React.useEffect(() => {

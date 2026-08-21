@@ -718,8 +718,11 @@ def clear_emulator_cache():
     _emulator_cache = {"data": None, "timestamp": None}
 
 # --------------------------------------------------
-# SCADA Field Mappings
+# SCADA Field Mappings (Workstream B — driven by scada_tags)
 # --------------------------------------------------
+# Mutable lists so scada_tag_registry.refresh_consumer_lists() can update them
+# in place. CONTRACTS.md freezes MILLING_FIELDS / INPUT_FIELDS as importable
+# lists — callers that imported the name keep working after a registry refresh.
 
 # Milling streams (cumulative TON counters)
 MILLING_FIELDS = [
@@ -764,7 +767,7 @@ DAMAGED_FIELDS = [
     "SL607_DAMAGED",
 ]
 
-# Build comprehensive allowed fields list
+# Build comprehensive allowed fields list (list, not tuple — mutated by registry)
 ALLOWED_SCADA_FIELDS = (
     MILLING_FIELDS +
     PACKING_FIELDS +
@@ -772,6 +775,15 @@ ALLOWED_SCADA_FIELDS = (
     WATER_FIELDS +
     DAMAGED_FIELDS
 )
+# Rebind as a fresh list so refresh can .clear()/.extend() without touching the
+# category lists' identities incorrectly when ALLOWED was a sum of lists.
+ALLOWED_SCADA_FIELDS = list(ALLOWED_SCADA_FIELDS)
+
+try:
+    from services.scada_tag_registry import refresh_consumer_lists as _refresh_scada_lists
+    _refresh_scada_lists()
+except Exception as _scada_reg_exc:
+    print(f"[DEBUG] scada_tag_registry refresh deferred: {_scada_reg_exc}")
 
 # --------------------------------------------------
 # GLOBAL RESET (Option C)
@@ -1100,22 +1112,27 @@ def apply_reset_offset(value: float, tag: str, apply_reset: bool = True) -> floa
         Adjusted value (value - reset_baseline[tag]) clamped to >= 0.0
     """
     try:
-        # ✅ AUTO-NORMALIZE palletizer counters at 100000 (PACKING orders only)
-        # Palletizer counters reset to 0 after reaching 100000 in SCADA
-        # Apply modulo 100000 to normalize display to 0-99999 range
-        # This runs BEFORE manual reset offset, so both mechanisms can work together
-        PALLETIZER_MAX = 100000
+        # ✅ AUTO-NORMALIZE packing counters at registry rollover_max (B2)
+        # Apply modulo before manual reset offset so both mechanisms can work together
         if tag in PACKING_FIELDS and value is not None:
-            raw_value = float(value)
-            if raw_value >= PALLETIZER_MAX:
-                normalized = raw_value % PALLETIZER_MAX
-                # Log first occurrence per tag for debugging
-                if not hasattr(apply_reset_offset, '_palletizer_normalized'):
-                    apply_reset_offset._palletizer_normalized = set()
-                if tag not in apply_reset_offset._palletizer_normalized:
-                    apply_reset_offset._palletizer_normalized.add(tag)
-                    log.info(f"🔄 [{tag}] Auto-normalized palletizer: raw={raw_value:.2f} → normalized={normalized:.2f} (modulo {PALLETIZER_MAX})")
-                value = normalized
+            try:
+                from services.scada_tag_registry import get_rollover_max
+                palletizer_max = get_rollover_max(tag, default=100000.0)
+            except Exception:
+                palletizer_max = 100000.0
+            if palletizer_max and palletizer_max > 0:
+                raw_value = float(value)
+                if raw_value >= palletizer_max:
+                    normalized = raw_value % palletizer_max
+                    if not hasattr(apply_reset_offset, '_palletizer_normalized'):
+                        apply_reset_offset._palletizer_normalized = set()
+                    if tag not in apply_reset_offset._palletizer_normalized:
+                        apply_reset_offset._palletizer_normalized.add(tag)
+                        log.info(
+                            f"🔄 [{tag}] Auto-normalized palletizer: raw={raw_value:.2f} → "
+                            f"normalized={normalized:.2f} (modulo {palletizer_max})"
+                        )
+                    value = normalized
         
         if not apply_reset:
             return float(value if value is not None else 0.0)
@@ -1583,29 +1600,22 @@ def calculate_deltas(equipment: List[str], baselines: Dict[str, float], order=No
         else:  # WG and other scales (totalizers - use delta)
             raw_delta = current - baseline
             
-            # ✅ C31-T26: Handle palletizer 100K reset (PACKING orders only)
-            # Palletizer counters reset to 0 after reaching 100000
-            # When delta is negative for a palletizer tag, the counter rolled over
+            # ✅ B2: packing rollover from scada_tags.rollover_max (was hardcoded 100000)
             is_palletizer = tag in PACKING_FIELDS
-            
+
             if raw_delta < 0 and is_palletizer:
-                # Palletizer reset detected - counter rolled over from 100000 to 0
-                # Formula: delta = current + (100000 - baseline)
-                # Example: baseline=99998, current=1 → delta = 1 + (100000 - 99998) = 3
-                PALLETIZER_MAX = 100000
-                delta = current + (PALLETIZER_MAX - baseline)
-                print(f"🔄 [{tag}] Palletizer 100K rollover: baseline={baseline}, current={current}, delta={delta}")
-                
-                # ✅ C31-T26 FIX: DO NOT update baseline after rollover!
-                # The C31-T26 formula continues to work correctly as the counter increases:
-                # - 100001: delta = 1 + (100000 - 99998) = 3
-                # - 100002: delta = 2 + (100000 - 99998) = 4
-                # - 100003: delta = 3 + (100000 - 99998) = 5
-                # 
-                # If we updated baseline to 1, the next poll would give delta = 0 or 1,
-                # which would OVERWRITE the correct production value!
-                # 
-                # The formula handles rollover naturally - no baseline update needed.
+                try:
+                    from services.scada_tag_registry import get_rollover_max
+                    palletizer_max = get_rollover_max(tag, default=100000.0) or 100000.0
+                except Exception:
+                    palletizer_max = 100000.0
+                delta = current + (palletizer_max - baseline)
+                print(
+                    f"🔄 [{tag}] Palletizer rollover (max={palletizer_max}): "
+                    f"baseline={baseline}, current={current}, delta={delta}"
+                )
+                # Do not update baseline after rollover — formula stays valid as
+                # the counter climbs past the wrap point.
             else:
                 # Normal case - clamp negative deltas to 0 (for WG scales or normal palletizer operation)
                 delta = max(0.0, raw_delta)

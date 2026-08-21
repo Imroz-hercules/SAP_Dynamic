@@ -473,20 +473,34 @@ def initialize_database_tables():
         print(f"❌ Database initialization error: {e}")
 
 
-# CORS allowed origins - used by both Flask-CORS and after_request fallback
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000',
-    'https://unbundled-micaela-subapprobatory.ngrok-free.dev',
-    'https://unbundled-micaela-subapprobatory.ngrok-free.app',
-    'https://bankerly-conglutinant-lorinda.ngrok-free.dev',
-    'https://dorsey-barruly-enragedly.ngrok-free.dev',  # ✅ Added Feb 9, 2026
-    'https://hercules-sap.netlify.app',
-    'https://sap-auto.netlify.app',
-    'https://hercules-sap-new.netlify.app',
-]
+# CORS allowed origins - from CORS_ALLOWED_ORIGINS env (comma-separated), else localhost defaults.
+_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+if _cors_env:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ]
 
 def create_app():
     """Application factory for Hercules KPI API + React Frontend."""
+    # B5: fail fast on missing required SAP config instead of silent production connect
+    try:
+        from services.runtime_config import missing_required
+        missing = missing_required()
+        if missing:
+            names = ", ".join(missing)
+            raise RuntimeError(
+                f"Missing required configuration: {names}. "
+                f"Set them in backend/.env or system_settings before starting."
+            )
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        print(f"⚠️ startup config check deferred: {exc}")
+
     app = Flask(__name__)
     CORS(app, 
          supports_credentials=True, 

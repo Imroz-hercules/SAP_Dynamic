@@ -89,6 +89,13 @@ DEFAULT_SETTINGS = {
                        "Read once per cycle, so a change applies without a restart. "
                        "Clamped to 0.1-60."
     },
+
+    # Mill nameplate (B4)
+    "mill_nameplate_tph": {
+        "value": "25",
+        "value_type": "float",
+        "description": "Mill nameplate capacity in tons/hour"
+    },
 }
 
 

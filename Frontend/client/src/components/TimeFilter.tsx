@@ -10,6 +10,7 @@ import { CalendarIcon, ChevronDown, X, Clock } from 'lucide-react';
 import { format, startOfMonth, startOfDay, subDays, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
+import { shiftApi } from '@/lib/api';
 
 export interface TimeFilterProps {
   onApply: (filters: {
@@ -31,7 +32,8 @@ export interface TimeFilterProps {
   hideShifts?: boolean;
 }
 
-const SHIFT_OPTIONS = ['A', 'B', 'C'];
+// B6: no hardcoded A/B/C fallback — loaded from /api/shifts
+const FALLBACK_SHIFT_CODES: string[] = [];
 
 // Custom Checkbox wrapper for light mode visibility
 const LightModeCheckbox = ({ 
@@ -152,10 +154,46 @@ export function TimeFilter({ onApply, initialValues, hideShifts = false }: TimeF
     return '00:00';
   });
 
-  // Shift states
+  // Shift states — options from /api/shifts (B6), never a fabricated A/B/C list
+  const [shiftOptions, setShiftOptions] = useState<string[]>(FALLBACK_SHIFT_CODES);
+  const [shiftsLoadError, setShiftsLoadError] = useState<string | null>(null);
   const [selectedShifts, setSelectedShifts] = useState<string[]>(
-    initialValues?.shifts || SHIFT_OPTIONS
+    initialValues?.shifts || []
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await shiftApi.getShifts();
+        if (cancelled) return;
+        const codes = Array.from(
+          new Set(
+            (rows || [])
+              .map((s) => {
+                const code = (s.shift_code || '').replace(/^Shift\s+/i, '').trim();
+                return code || s.shift_code;
+              })
+              .filter(Boolean)
+          )
+        ).sort();
+        setShiftOptions(codes);
+        setShiftsLoadError(null);
+        setSelectedShifts((prev) =>
+          prev.length > 0 ? prev.filter((c) => codes.includes(c)) : codes
+        );
+      } catch (err) {
+        if (cancelled) return;
+        console.error('TimeFilter: failed to load shifts', err);
+        setShiftOptions([]);
+        setSelectedShifts([]);
+        setShiftsLoadError('Could not load shifts from the server');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Period selector (Daily/Weekly/Monthly/Date Range)
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'range'>(
@@ -364,7 +402,7 @@ export function TimeFilter({ onApply, initialValues, hideShifts = false }: TimeF
       setEndTime('23:59');
     }
     
-    setSelectedShifts(SHIFT_OPTIONS);
+    setSelectedShifts(shiftOptions);
   };
 
   // Format date for display (with time if provided)
@@ -416,7 +454,7 @@ export function TimeFilter({ onApply, initialValues, hideShifts = false }: TimeF
   // Get shift display text
   const getShiftDisplayText = (): string => {
     if (selectedShifts.length === 0) return 'Select shifts';
-    if (selectedShifts.length === SHIFT_OPTIONS.length) return 'All Shifts';
+    if (selectedShifts.length === shiftOptions.length && shiftOptions.length > 0) return 'All Shifts';
     return selectedShifts.sort().join(', ');
   };
 
@@ -1347,7 +1385,12 @@ export function TimeFilter({ onApply, initialValues, hideShifts = false }: TimeF
                   align="start"
                 >
                   <div className="space-y-2">
-                    {SHIFT_OPTIONS.map((shift) => (
+                    {shiftOptions.length === 0 ? (
+                      <div className={cn('text-sm px-2 py-1', theme === 'light' ? 'text-slate-500' : 'text-slate-400')}>
+                        {shiftsLoadError || 'No shifts configured'}
+                      </div>
+                    ) : (
+                      shiftOptions.map((shift) => (
                       <div
                         key={shift}
                         className={cn(
@@ -1382,11 +1425,12 @@ export function TimeFilter({ onApply, initialValues, hideShifts = false }: TimeF
                           Shift {shift}
                         </Label>
                       </div>
-                    ))}
+                    ))
+                    )}
                   </div>
                   {selectedShifts.length === 0 && (
                     <div className="mt-2 text-xs text-red-400">
-                      At least one shift must be selected
+                      {shiftsLoadError || 'At least one shift must be selected'}
                     </div>
                   )}
                 </PopoverContent>

@@ -911,22 +911,30 @@ const MillingSection: React.FC<{ theme: 'light' | 'dark'; kpiData: KpiData | nul
   };
 
   // All 16 Milling KPIs
-  const throughput = kpiData ? safeValue(kpiData.milling_kpis['Mill Throughput (%)']) : 100.00;
-  const timeEff = kpiData ? safeValue(kpiData.milling_kpis['Mill Time Efficiency (%)']) : 33;
-  const totalUtil = kpiData ? safeValue(kpiData.milling_kpis['Total Utilization (%)']) : 33;
-  const maxUtil = kpiData ? safeValue(kpiData.milling_kpis['Max Utilization of Milling Capacity (%)']) : 100;
-  const firstBreakCap = kpiData ? safeValue(kpiData.milling_kpis['1st Break Capacity per Hour (t/h)']) : 30.00;
-  const netHours = kpiData ? safeValue(kpiData.milling_kpis['Net Hours (hrs)']) : 8.00;
-  const downtime = kpiData ? safeValue(kpiData.milling_kpis['Downtime (hrs)']) : 0.00;
-  const millingGain = kpiData ? safeValue(kpiData.milling_kpis['Milling Gain']) : 36.42;
-  const millingLoss = kpiData ? safeValue(kpiData.milling_kpis['Milling Loss (%)']) : 66.92;
-  const flourExt = kpiData ? safeValue(kpiData.milling_kpis['Flour Extraction (%)']) : 13.41;
-  const branExt = kpiData ? safeValue(kpiData.milling_kpis['Bran Extraction (%)']) : 19.67;
-  const millingScreening = kpiData ? safeValue(kpiData.milling_kpis['Milling Screening (%)']) : 2.19;
-  const preCleanScreening = kpiData ? safeValue(kpiData.milling_kpis['Pre Cleaning Screening (%)']) : 0.64;
-  const preCleaningWater = scadaData?.totalPreCleaningWater ? parseFloat(scadaData.totalPreCleaningWater) : (kpiData && (kpiData.milling_kpis as any)['Pre Cleaning Water (L)'] ? safeValue((kpiData.milling_kpis as any)['Pre Cleaning Water (L)']) : 12.01);
-  const waterCleanWheat = scadaData?.waterCleanWheat ? parseFloat(scadaData.waterCleanWheat) : (kpiData && (kpiData.milling_kpis as any)['Water Clean Wheat (L)'] ? safeValue((kpiData.milling_kpis as any)['Water Clean Wheat (L)']) : 23.00);
-  const totalWaterUsed = scadaData?.totalWaterUsed ? parseFloat(scadaData.totalWaterUsed) : (kpiData && (kpiData.milling_kpis as any)['Total Water Used (L)'] ? safeValue((kpiData.milling_kpis as any)['Total Water Used (L)']) : 35.01);
+  const throughput = kpiData ? safeValue(kpiData.milling_kpis['Mill Throughput (%)']) : 0;
+  const timeEff = kpiData ? safeValue(kpiData.milling_kpis['Mill Time Efficiency (%)']) : 0;
+  const totalUtil = kpiData ? safeValue(kpiData.milling_kpis['Total Utilization (%)']) : 0;
+  const maxUtil = kpiData ? safeValue(kpiData.milling_kpis['Max Utilization of Milling Capacity (%)']) : 0;
+  const firstBreakCap = kpiData ? safeValue(kpiData.milling_kpis['1st Break Capacity per Hour (t/h)']) : 0;
+  const netHours = kpiData ? safeValue(kpiData.milling_kpis['Net Hours (hrs)']) : 0;
+  const downtime = kpiData ? safeValue(kpiData.milling_kpis['Downtime (hrs)']) : 0;
+  const millingGain = kpiData ? safeValue(kpiData.milling_kpis['Milling Gain']) : 0;
+  const millingLoss = kpiData ? safeValue(kpiData.milling_kpis['Milling Loss (%)']) : 0;
+  const flourExt = kpiData ? safeValue(kpiData.milling_kpis['Flour Extraction (%)']) : 0;
+  const branExt = kpiData ? safeValue(kpiData.milling_kpis['Bran Extraction (%)']) : 0;
+  const millingScreening = kpiData ? safeValue(kpiData.milling_kpis['Milling Screening (%)']) : 0;
+  const preCleanScreening = kpiData ? safeValue(kpiData.milling_kpis['Pre Cleaning Screening (%)']) : 0;
+  const preCleaningWater = scadaData?.totalPreCleaningWater ? parseFloat(scadaData.totalPreCleaningWater) : (kpiData && (kpiData.milling_kpis as any)['Pre Cleaning Water (L)'] ? safeValue((kpiData.milling_kpis as any)['Pre Cleaning Water (L)']) : 0);
+  const waterCleanWheat = scadaData?.waterCleanWheat ? parseFloat(scadaData.waterCleanWheat) : (kpiData && (kpiData.milling_kpis as any)['Water Clean Wheat (L)'] ? safeValue((kpiData.milling_kpis as any)['Water Clean Wheat (L)']) : 0);
+  const totalWaterUsed = scadaData?.totalWaterUsed ? parseFloat(scadaData.totalWaterUsed) : (kpiData && (kpiData.milling_kpis as any)['Total Water Used (L)'] ? safeValue((kpiData.milling_kpis as any)['Total Water Used (L)']) : 0);
+
+  if (!kpiData) {
+    return (
+      <div className={`rounded-lg p-8 text-center ${theme === 'light' ? 'bg-white text-slate-600' : 'bg-slate-800 text-slate-300'}`}>
+        No milling KPI data available.
+      </div>
+    );
+  }
 
   // Generate hourly time labels for milling: 07:00 to 23:00
   const generateMillingTimeLabels = (): string[] => {
@@ -1298,12 +1306,20 @@ const PackingSection: React.FC<{
   };
 
   // All 6 Packing KPIs
-  const dailyOutput = kpiData ? safeValue(kpiData.packing_kpis['Daily Packing Output (bags)']) : 20930;
-  const lineCapacityBags = kpiData ? safeValue(kpiData.packing_kpis['Packing Line Capacity (bags/hr)']) : 2000;
-  const lineCapacityTons = kpiData ? safeValue(kpiData.packing_kpis['Packing Line Capacity (tons/hr)']) : 50.00;
-  const machineUtil = kpiData ? safeValue(kpiData.packing_kpis['Machine Utilization (%)']) : 33.33;
-  const netHours = kpiData ? safeValue(kpiData.packing_kpis['Net Hours (hrs)']) : 8;
+  const dailyOutput = kpiData ? safeValue(kpiData.packing_kpis['Daily Packing Output (bags)']) : 0;
+  const lineCapacityBags = kpiData ? safeValue(kpiData.packing_kpis['Packing Line Capacity (bags/hr)']) : 0;
+  const lineCapacityTons = kpiData ? safeValue(kpiData.packing_kpis['Packing Line Capacity (tons/hr)']) : 0;
+  const machineUtil = kpiData ? safeValue(kpiData.packing_kpis['Machine Utilization (%)']) : 0;
+  const netHours = kpiData ? safeValue(kpiData.packing_kpis['Net Hours (hrs)']) : 0;
   const downtime = kpiData ? safeValue(kpiData.packing_kpis['Downtime (hrs)']) : 0;
+
+  if (!kpiData) {
+    return (
+      <div className={`rounded-lg p-8 text-center ${theme === 'light' ? 'bg-white text-slate-600' : 'bg-slate-800 text-slate-300'}`}>
+        No packing KPI data available.
+      </div>
+    );
+  }
 
   // Generate hourly time labels for packing: 07:30 to 23:30
   const generatePackingTimeLabels = (): string[] => {

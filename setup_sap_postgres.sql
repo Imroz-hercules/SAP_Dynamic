@@ -1,7 +1,7 @@
 -- =============================================================================
 -- SAP_Dynamic PostgreSQL setup
--- Database: sap   User: postgres   Password: Hercules   Port: 5432
--- (matches backend/database.py)
+-- Database name / owner / port come from your environment (see backend/.env.example).
+-- Do not commit real passwords here.
 --
 -- Usage (psql as superuser):
 --   psql -U postgres -f setup_sap_postgres.sql

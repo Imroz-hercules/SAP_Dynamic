@@ -266,6 +266,31 @@ SCADA_RESET_BASE = {}
 # This allows order_validation to detect and update baselines accordingly
 PALLETIZER_AUTO_RESET_EVENTS = {}
 
+
+def _registry_scale_groups():
+    """
+    Active tag groups from scada_tags (B1). Falls back to the historical lists
+    if the registry cannot be read.
+    """
+    try:
+        from services.scada_tag_registry import hi_lo_tags, tags_for_category
+        wg = hi_lo_tags(active_only=True)
+        pl_sl = [
+            t for t in tags_for_category("PACKING", active_only=True)
+            if "DAMAGED" not in t
+        ]
+        dm = tags_for_category("WATER", active_only=True)
+        if wg or pl_sl or dm:
+            return wg, pl_sl, dm
+    except Exception as exc:
+        logger.debug("SCADA registry unavailable for scale groups: %s", exc)
+    return (
+        ["WG101", "WG201", "WG202", "WG301", "WG302", "WG501", "WG502", "WG503"],
+        ["PL601_TOT", "PL602_TOT", "PL603_TOT", "SL606_TOT", "SL607_TOT"],
+        ["DM101", "DM102", "DM201", "DM202", "DM203"],
+    )
+
+
 # ============================================================
 # RESET API — makes system treat current SCADA values as ZERO
 # ============================================================
@@ -296,14 +321,8 @@ def reset_scada_to_zero():
             except:
                 return 0.0
         
-        # ✅ WG scales that need HI+LO concatenation
-        wg_scales_with_hi_lo = ['WG101', 'WG201', 'WG202', 'WG301', 'WG302', 'WG501', 'WG502', 'WG503']
-        
-        # ✅ PL and SL scales (direct column names)
-        pl_sl_scales = ['PL601_TOT', 'PL602_TOT', 'PL603_TOT', 'SL606_TOT', 'SL607_TOT']
-        
-        # ✅ DM scales
-        dm_scales = ['DM101', 'DM102', 'DM201', 'DM202', 'DM203']
+        # ✅ WG / PL-SL / DM groups from scada_tags registry (B1)
+        wg_scales_with_hi_lo, pl_sl_scales, dm_scales = _registry_scale_groups()
         
         # ✅ CHECK DEMO MODE - Read from emulator instead of MSSQL
         from database import get_demo_mode
@@ -632,11 +651,8 @@ def get_scales_status():
             except:
                 return 0.0
         
-        # ✅ WG scales that need HI+LO concatenation
-        wg_scales_with_hi_lo = ['WG101', 'WG201', 'WG202', 'WG301', 'WG302', 'WG501', 'WG502', 'WG503']
-        
-        # ✅ PL and SL scales (direct column names)
-        pl_sl_scales = ['PL601_TOT', 'PL602_TOT', 'PL603_TOT', 'SL606_TOT', 'SL607_TOT']
+        # ✅ WG / PL-SL groups from scada_tags registry (B1)
+        wg_scales_with_hi_lo, pl_sl_scales, _dm_scales = _registry_scale_groups()
         
         scales_status = []
         
@@ -842,11 +858,8 @@ def get_scada_readings():
             except:
                 return 0.0
         
-        # ✅ WG scales that need HI+LO concatenation
-        wg_scales_with_hi_lo = ['WG101', 'WG201', 'WG202', 'WG301', 'WG302', 'WG501', 'WG502', 'WG503']
-        
-        # ✅ PL and SL scales (direct column names)
-        pl_sl_scales = ['PL601_TOT', 'PL602_TOT', 'PL603_TOT', 'SL606_TOT', 'SL607_TOT']
+        # ✅ WG / PL-SL groups from scada_tags registry (B1)
+        wg_scales_with_hi_lo, pl_sl_scales, _dm_scales = _registry_scale_groups()
         
         # ✅ Calculate adjusted WG values (concatenated HI+LO minus offset)
         adjusted_wg_values = {}

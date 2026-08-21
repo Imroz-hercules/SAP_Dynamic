@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { WaterSystemLayout } from '../../components/hercules-sfms/WaterSystemLayout';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { apiFetch, getApiUrl } from '../../lib/apiConfig';
+import { scadaConfigApi, ScadaTag } from '@/lib/api';
 import {
   Activity,
   Wifi,
@@ -43,8 +44,20 @@ interface SignalConfig {
   type: 'weight' | 'flow' | 'count' | 'other';
 }
 
-// Weighing Modules (WG) - Matching reference image WG-01 through WG-08
-const WEIGHING_CONFIG: SignalConfig[] = [
+function tagsToConfigs(tags: ScadaTag[], category: string): SignalConfig[] {
+  return tags
+    .filter((t) => t.is_active && t.category === category)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((t) => ({
+      key: t.tag,
+      label: t.display_name || t.tag,
+      unit: t.unit || (category === 'WATER' ? 'L' : category === 'PACKING' ? 'PALLETS' : 'KG'),
+      type: category === 'WATER' ? 'flow' : category === 'PACKING' ? 'count' : 'weight',
+    }));
+}
+
+// Bootstrap configs used only until /api/scada-config/tags responds
+const WEIGHING_BOOTSTRAP: SignalConfig[] = [
   { key: 'WG101', label: 'Weight Gauge 101', unit: 'KG', type: 'weight' },
   { key: 'WG202', label: 'Weight Gauge 202', unit: 'KG', type: 'weight' },
   { key: 'WG302', label: 'Weight Gauge 302', unit: 'KG', type: 'weight' },
@@ -55,8 +68,7 @@ const WEIGHING_CONFIG: SignalConfig[] = [
   { key: 'WG503', label: 'Weight Gauge 503', unit: 'KG', type: 'weight' },
 ];
 
-// Dosing Modules (DM)
-const DOSING_CONFIG: SignalConfig[] = [
+const DOSING_BOOTSTRAP: SignalConfig[] = [
   { key: 'DM101', label: 'Dosing Module 101', unit: 'L', type: 'flow' },
   { key: 'DM102', label: 'Dosing Module 102', unit: 'L', type: 'flow' },
   { key: 'DM201', label: 'Dosing Module 201', unit: 'L', type: 'flow' },
@@ -64,8 +76,7 @@ const DOSING_CONFIG: SignalConfig[] = [
   { key: 'DM203', label: 'Dosing Module 203', unit: 'L', type: 'flow' },
 ];
 
-// Packing Lines (PL)
-const PACKING_CONFIG: SignalConfig[] = [
+const PACKING_BOOTSTRAP: SignalConfig[] = [
   { key: 'PL601_TOT', label: 'Packing Line 601', unit: 'PALLETS', type: 'count' },
   { key: 'PL602_TOT', label: 'Packing Line 602', unit: 'PALLETS', type: 'count' },
   { key: 'PL603_TOT', label: 'Packing Line 603', unit: 'PALLETS', type: 'count' },
@@ -249,6 +260,30 @@ const LiveMonitor = () => {
   const [loadingScales, setLoadingScales] = useState(false);
 
   const { theme } = useTheme();
+
+  // B9: tag list from scada_tags registry
+  const { data: registryTags } = useQuery({
+    queryKey: ['/api/scada-config/tags'],
+    queryFn: () => scadaConfigApi.getTags(),
+    staleTime: 30_000,
+  });
+
+  const WEIGHING_CONFIG = useMemo(() => {
+    if (!registryTags?.length) return WEIGHING_BOOTSTRAP;
+    const input = tagsToConfigs(registryTags, 'INPUT');
+    const milling = tagsToConfigs(registryTags, 'MILLING');
+    return [...input, ...milling];
+  }, [registryTags]);
+
+  const DOSING_CONFIG = useMemo(
+    () => (registryTags?.length ? tagsToConfigs(registryTags, 'WATER') : DOSING_BOOTSTRAP),
+    [registryTags],
+  );
+
+  const PACKING_CONFIG = useMemo(() => {
+    if (!registryTags?.length) return PACKING_BOOTSTRAP;
+    return tagsToConfigs(registryTags, 'PACKING').filter((c) => !c.key.includes('DAMAGED') && !c.key.includes('COUNTER'));
+  }, [registryTags]);
 
   // Fetch current user info
   const { data: userData } = useQuery({
