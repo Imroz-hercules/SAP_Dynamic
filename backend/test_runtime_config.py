@@ -31,8 +31,10 @@ from services import runtime_config as rc  # noqa: E402
 
 passed = 0
 failed = 0
+# Every key any test writes. A key missing from here is written and never
+# restored - sap_username was, which left a blank row behind on every run.
 TOUCHED = ("sap_base_url", "sap_client", "sap_timeout", "sap_mock_url",
-           "sap_endpoint_orders", "sap_password")
+           "sap_endpoint_orders", "sap_password", "sap_username")
 _original = {}
 
 
@@ -53,8 +55,20 @@ def store(key, value):
 
 
 def clear(key):
-    """Blank the stored value so resolution falls through to env/default."""
-    set_setting(key, "", value_type=rc.SETTINGS[key].kind)
+    """
+    Remove the stored value so resolution falls through to env/default.
+
+    Deletes the row rather than blanking it. Blanking left junk behind, and a
+    blanked numeric coerced to 0 - which the Engineering page then displayed
+    as the value in force while the application used the default.
+    """
+    from database import PostgresSessionLocal
+    from models.system_settings import SystemSettings
+
+    with PostgresSessionLocal() as db:
+        db.query(SystemSettings).filter(SystemSettings.key == key).delete(
+            synchronize_session=False)
+        db.commit()
     rc.invalidate()
 
 
@@ -112,6 +126,27 @@ def test_secrets_are_masked():
     rc.invalidate()
     check("and the password is unchanged", rc.sap_password() == before,
           (before, rc.sap_password()))
+
+
+def test_meaningless_values_are_refused():
+    print("\nA value the reader would not use is refused, not stored")
+    # A timeout of 0 is not a setting, it is a broken one - every SAP request
+    # would fail instantly. Found because a test's own cleanup blanked the row,
+    # which coerced to 0, and the page then showed 0 while the app used 30.
+    result = rc.apply({"sap_timeout": 0})
+    check("a zero timeout is refused",
+          result["saved"] == [] and "at least" in result["skipped"][0]["reason"], result)
+
+    # A bad row already in the table must not make the page disagree with the
+    # application.
+    set_setting("sap_timeout", "0", value_type="integer")
+    rc.invalidate()
+    shown = [r for r in rc.describe() if r["key"] == "sap_timeout"][0]
+    check("the page does not show it as the value in force",
+          shown["value"] == rc.sap_timeout(), (shown["value"], rc.sap_timeout()))
+    check("and does not claim the database as its source",
+          shown["source"] != "database", shown["source"])
+    clear("sap_timeout")
 
 
 def test_forbidden_and_readonly():
@@ -217,6 +252,7 @@ def main():
         test_resolution_order()
         test_types()
         test_secrets_are_masked()
+        test_meaningless_values_are_refused()
         test_forbidden_and_readonly()
         test_sap_config_is_live()
         test_mock_mode_is_honoured()
@@ -224,10 +260,18 @@ def main():
         test_missing_required_names_the_variable()
     finally:
         for key, value in _original.items():
-            set_setting(key, "" if value is None else value,
-                        value_type=rc.SETTINGS[key].kind)
+            # Blank counts as "was never stored" too, otherwise a dirty
+            # starting state gets faithfully restored and never drains.
+            if value is None or str(value).strip() == "":
+                clear(key)          # remove the row, do not blank it
+            else:
+                set_setting(key, value, value_type=rc.SETTINGS[key].kind)
         rc.invalidate()
-        print("\n  (restored every setting this test touched)")
+        stored_now = rc._stored()
+        leftovers = [k for k in TOUCHED if k in stored_now
+                     and str(stored_now.get(k) or "").strip() in ("", "0")]
+        print("\n  (restored every setting this test touched"
+              + ("; LEFTOVERS: " + str(leftovers) if leftovers else "") + ")")
 
     print(f"\n{passed} passed, {failed} failed")
     return 1 if failed else 0
