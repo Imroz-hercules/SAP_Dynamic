@@ -270,12 +270,25 @@ log = logging.getLogger("scheduler")
 # Configuration
 # -------------------------------------------------------------------
 SCADA_KEYS = [
-    "WG101","WG201","WG202","WG301","WG302","WG501","WG502","WG503",
-    "DM101","DM102","DM201","DM202","DM203",
-    "SL601_COUNTER"
+    "WG101", "WG201", "WG202", "WG301", "WG302", "WG501", "WG502", "WG503",
+    "DM101", "DM102", "DM201", "DM202", "DM203",
+    "SL601_COUNTER",
 ]
 
-SOURCE_TABLE = "[HerculesV2].[dbo].[ASMArchive_DB5]"
+# Workstream B: replace with active+pollable tags from scada_tags when available.
+try:
+    from services.scada_tag_registry import poll_keys, refresh_consumer_lists
+    _reg_keys = poll_keys()
+    if _reg_keys:
+        SCADA_KEYS = list(_reg_keys)
+    refresh_consumer_lists()
+except Exception as _reg_exc:
+    log.debug("SCADA registry not applied at scheduler import: %s", _reg_exc)
+
+SOURCE_TABLE = os.getenv(
+    "SCADA_SOURCE_TABLE",
+    "[HerculesV2].[dbo].[ASMArchive_DB5]",
+)
 
 SCADA_INTERVAL_SECONDS = int(os.getenv("SCADA_POLL_INTERVAL_SEC", "60"))
 PO_PULL_INTERVAL_HOURS = float(os.getenv("PO_PULL_INTERVAL_HOURS", "3"))

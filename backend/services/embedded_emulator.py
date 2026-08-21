@@ -52,8 +52,8 @@ PACKING_FIELDS = [
     "SL607_TOT", "SL606_TOT",
 ]
 
-# Combined list of all SCADA keys
-SCADA_KEYS = INPUT_FIELDS + MILLING_FIELDS + WATER_FIELDS + PACKING_FIELDS
+# Combined list of all SCADA keys (mutable — refreshed from scada_tags)
+SCADA_KEYS = list(INPUT_FIELDS + MILLING_FIELDS + WATER_FIELDS + PACKING_FIELDS)
 
 # Category mapping for display
 SCALE_CATEGORIES = {
@@ -422,14 +422,19 @@ class EmbeddedEmulator:
                 if key.endswith("_LO"):
                     # Increment LO value with overflow handling (like real SCADA)
                     new_lo = self.scale_values[key] + int(increment)
-                    LO_MAX = 1000000  # 6 digits max (0-999999)
-                    if new_lo >= LO_MAX:
+                    base_tag = key[:-3]  # strip _LO
+                    try:
+                        from services.scada_tag_registry import get_rollover_max
+                        lo_max = int(get_rollover_max(base_tag, default=1000000.0) or 1000000)
+                    except Exception:
+                        lo_max = 1000000
+                    if new_lo >= lo_max:
                         # Roll over LO and increment HI
                         hi_key = key[:-3] + "_HI"
                         if hi_key in self.scale_values:
-                            overflow_count = int(new_lo // LO_MAX)
+                            overflow_count = int(new_lo // lo_max)
                             self.scale_values[hi_key] += overflow_count
-                        new_lo = new_lo % LO_MAX
+                        new_lo = new_lo % lo_max
                     self.scale_values[key] = new_lo
                 elif key.endswith("_HI"):
                     # HI only changes on LO overflow - don't increment directly

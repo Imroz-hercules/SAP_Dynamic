@@ -29,7 +29,6 @@ import ProcessOrderValidation from "./pages/hercules-sfms/ProcessOrderValidation
 import ScadaReadings from "./pages/hercules-sfms/ScadaReadings";
 import SAPDashboard from "./pages/hercules-sfms/SAPDashboard";
 import Reports from "./pages/hercules-sfms/Reportss";
-import { Admin } from "./pages/hercules-sfms/Admin";
 import { OfflineOrderValidation } from "./pages/hercules-sfms/OfflineOrderValidation";
 import UserManagement from "./pages/hercules-sfms/UserManagement";
 import { UserActivityLog } from "./pages/hercules-sfms/UserActivityLog";
@@ -108,10 +107,14 @@ function Router() {
       <Route path="/process-validation" component={() => <AuthGuard><ProcessOrderValidation /></AuthGuard>} />
       <Route path="/scada-readings" component={() => <AuthGuard><ScadaReadings /></AuthGuard>} />
       <Route path="/reports" component={() => <AuthGuard><Reports /></AuthGuard>} />
-      <Route path="/admin" component={() => <AuthGuard><AdminGuard><Admin /></AdminGuard></AuthGuard>} />
+      <Route path="/admin" component={() => {
+        const search = window.location.search || '?tab=connection';
+        window.location.replace(`/engineering${search}`);
+        return null;
+      }} />
       <Route path="/user-management" component={() => <AuthGuard><AdminGuard><UserManagement /></AdminGuard></AuthGuard>} />
       <Route path="/activity-log" component={() => <AuthGuard><AdminGuard><UserActivityLog /></AdminGuard></AuthGuard>} />
-      {/* A8: plant connection configuration — admin only, it handles credentials */}
+      {/* Plant config hub: connection, demo, tags, KPIs, system, shifts, … */}
       <Route path="/engineering" component={() => <AuthGuard><AdminGuard><Engineering /></AdminGuard></AuthGuard>} />
       
       {/* Legacy routes redirect to SAP Dashboard */}

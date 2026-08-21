@@ -112,11 +112,11 @@ const menuItems = [
     description: 'Operator actions log (Admin Only)'
   },
   {
-    // A8: plant connection configuration. Previously .env only.
+    // Plant configuration hub: connection, demo/emulator, tags, KPIs, system, …
     path: '/engineering',
     icon: Settings,
     label: 'Engineering',
-    description: 'SAP & SQL Server connection (Admin Only)'
+    description: 'Plant config, demo mode & SAP (Admin Only)'
   },
 ]
 

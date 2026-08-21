@@ -275,8 +275,9 @@ def calc_kpis_from_row(row):
         # Only calculate milling KPIs if we have valid milling data
         # This is a strict check - if any required data is missing, all values remain 0
         if has_milling_data and has_valid_data:
-            # Standard mill nameplate capacity is 25 t/h
-            nameplate_tph = 25.0
+            # B4: mill nameplate from system_settings.mill_nameplate_tph
+            from services.kpi_config_registry import clamp as kpi_clamp, get_nameplate_tph
+            nameplate_tph = get_nameplate_tph()
 
             # Calculate capacity per hour based on output if not available
             if cap_per_h <= 0 and run_hours > 0:
@@ -285,34 +286,29 @@ def calc_kpis_from_row(row):
             # Mill Throughput (%) - calculate based on capacity
             if cap_per_h > 0:
                 mill_throughput = (cap_per_h / nameplate_tph * 100.0)
-                # Cap at 100% maximum (percentage cannot exceed 100)
-                mill_throughput = min(mill_throughput, 100.0)
+                mill_throughput = kpi_clamp("mill_throughput_pct", mill_throughput)
 
             # Mill Time Efficiency (%) - use default values since we don't have real time data
             if daily_hrs > 0:
                 mill_time_eff = (run_hours / daily_hrs * 100.0)
-                # Cap at 100% maximum
-                mill_time_eff = min(mill_time_eff, 100.0)
+                mill_time_eff = kpi_clamp("mill_time_efficiency_pct", mill_time_eff)
 
             # Total Utilization (%)
             total_util = (mill_time_eff * mill_throughput) / 100.0
-            # Cap at 100% maximum (percentage cannot exceed 100)
-            total_util = min(total_util, 100.0)
+            total_util = kpi_clamp("total_utilization_pct", total_util)
 
             # Milling Gain (%) - calculate based on actual data
             if WG201 > 0:
                 total_output = WG501 + WG502 + WG503 + WG301 + WG302
                 if total_output > 0:
                     milling_gain = (total_output / WG201 * 100.0)
-                    # Cap at reasonable maximum (120% - some moisture gain is possible)
-                    milling_gain = min(milling_gain, 120.0)
+                    milling_gain = kpi_clamp("milling_gain_pct", milling_gain)
 
             # Milling Screening (%) - calculate based on actual data
             # Formula: (WG301) / (WG201) * 100%
             if WG201 > 0 and WG301 > 0:
                 screening_ratio = (WG301 / WG201 * 100.0)
-                # Cap at reasonable maximum (20% screening is very high)
-                screening_ratio = min(screening_ratio, 20.0)
+                screening_ratio = kpi_clamp("milling_screening_pct", screening_ratio)
 
             # Water Consumption calculation removed - using SCADA water data instead
 
@@ -321,8 +317,7 @@ def calc_kpis_from_row(row):
                 total_flour = WG501 + WG502
                 if total_flour > 0:
                     flour_extraction = (total_flour / WG202 * 100.0)
-                    # Cap at reasonable maximum (85% flour extraction is very high)
-                    flour_extraction = min(flour_extraction, 85.0)
+                    flour_extraction = kpi_clamp("flour_extraction_pct", flour_extraction)
 
             # # Milling Loss (%)
             # milling_loss = 100.0 - milling_gain
@@ -340,32 +335,34 @@ def calc_kpis_from_row(row):
             # New KPI Calculations
             
             # 1. MAX UTILIZATION OF MILLING CAPACITY
-            # Formula: (WG202) / (TOTAL RUN HOURS * 25)
+            # Formula: (WG202) / (TOTAL RUN HOURS * nameplate)
             if run_hours > 0:
-                max_utilization_milling_capacity = (WG202 / (run_hours * 25.0)) * 100.0
-                # Cap at 100% maximum (percentage cannot exceed 100)
-                max_utilization_milling_capacity = min(max_utilization_milling_capacity, 100.0)
+                max_utilization_milling_capacity = (WG202 / (run_hours * nameplate_tph)) * 100.0
+                max_utilization_milling_capacity = kpi_clamp(
+                    "max_utilization_milling_capacity_pct", max_utilization_milling_capacity
+                )
             
             # 2. PRE CLEANING SCREENING (%)
             # Formula: (WG302) / (WG101) * 100%
             if WG101 > 0 and WG302 > 0:
                 pre_cleaning_screening = (WG302 / WG101) * 100.0
-                # Cap at reasonable maximum (20%)
-                pre_cleaning_screening = min(pre_cleaning_screening, 20.0)
+                pre_cleaning_screening = kpi_clamp(
+                    "pre_cleaning_screening_pct", pre_cleaning_screening
+                )
             
             # 3. 1ST BREAK CAPACITY PER HOUR AND DAY
             # Formula: (WG202) / (NET HOURS)
             if net_hours > 0 and WG202 > 0:
                 first_break_capacity_per_hour = WG202 / net_hours
-                # Cap at reasonable maximum (30 t/h)
-                first_break_capacity_per_hour = min(first_break_capacity_per_hour, 30.0)
+                first_break_capacity_per_hour = kpi_clamp(
+                    "first_break_capacity_tph", first_break_capacity_per_hour
+                )
             
             # 4. BRAN EXTRACTION (%)
             # Formula: (WG503) / (WG202) * 100%
             if WG202 > 0 and WG503 > 0:
                 bran_extraction = (WG503 / WG202) * 100.0
-                # Cap at reasonable maximum (25% bran extraction is very high)
-                bran_extraction = min(bran_extraction, 25.0)
+                bran_extraction = kpi_clamp("bran_extraction_pct", bran_extraction)
 
         # ----- Packing KPIs ----------------------------------------------------
         # Initialize all packing KPIs to 0
@@ -379,25 +376,23 @@ def calc_kpis_from_row(row):
         # Only calculate packing KPIs if we have valid packing data
         # This is a strict check - if any required data is missing, all values remain 0
         if has_packing_data and has_valid_data:
+            from services.kpi_config_registry import clamp as kpi_clamp
             # Packing Line Capacity (bags/hr) - calculate based on output and time
             if net_hours > 0 and PL601 > 0:
                 packing_capacity = (PL601 / net_hours)
-                # Cap at reasonable maximum (2000 bags/hr)
-                packing_capacity = min(packing_capacity, 2000.0)
+                packing_capacity = kpi_clamp("packing_line_capacity_bags_hr", packing_capacity)
 
             # Daily Packing Output (bags) - use actual data but cap at reasonable maximum
             if PL601 > 0:
                 # The PL601_TOT value seems to be a cumulative total, not daily output
                 # Let's use it as is but cap it reasonably
                 daily_packing_output = PL601
-                # Cap at reasonable maximum (100000 bags per day)
-                daily_packing_output = min(daily_packing_output, 100000.0)
+                daily_packing_output = kpi_clamp("daily_packing_output_bags", daily_packing_output)
 
             # Packing Machine Utilization (%) - calculate based on time data
             if daily_hrs > 0 and net_hours > 0:
                 packing_util = (net_hours / daily_hrs * 100.0)
-                # Cap at 100% maximum
-                packing_util = min(packing_util, 100.0)
+                packing_util = kpi_clamp("machine_utilization_pct", packing_util)
 
             # New Packing KPI Calculation
             
@@ -872,7 +867,12 @@ def get_kpis():
     # Check if user wants to force latest snapshot (for backward compatibility)
     use_latest = request.args.get("use_latest", "false").lower() == "true"
     department = request.args.get("department", "MILLING").upper()
-    plant = request.args.get("plant", "3130")
+    try:
+        from routes.order_validation import get_default_plant
+        _default_plant = get_default_plant()
+    except Exception:
+        _default_plant = "3130"
+    plant = request.args.get("plant", _default_plant)
 
     try:
         # =====================================================================
@@ -1159,7 +1159,12 @@ def get_current_shift_kpis():
     
     try:
         department = request.args.get("department", "MILLING").upper()
-        plant = request.args.get("plant", "3130")
+        try:
+            from routes.order_validation import get_default_plant
+            _default_plant = get_default_plant()
+        except Exception:
+            _default_plant = "3130"
+        plant = request.args.get("plant", _default_plant)
         
         # Get current shift
         with PostgresSessionLocal() as db:

@@ -39,22 +39,34 @@ def is_mssql_enabled() -> bool:
     return os.getenv("MSSQL_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
 
-# SQL Server (SCADA read-only). Override with MSSQL_URL in backend/.env
-# Engine is always created for import compatibility; connections are skipped when
-# MSSQL_ENABLED=false or when the driver/server is unavailable.
-mssql_connection_string = os.getenv(
-    "MSSQL_URL",
-    "mssql+pyodbc://Hercules:nl6oUpr@localhost/HerculesV2"
-    "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes",
-)
+# SQL Server (SCADA read-only). Requires MSSQL_URL when MSSQL_ENABLED is true (B5).
+# No committed credentials — a missing URL fails with a named error instead of
+# silently connecting with a baked-in password.
+_mssql_url = os.getenv("MSSQL_URL", "").strip()
+if is_mssql_enabled():
+    if not _mssql_url:
+        raise RuntimeError(
+            "Missing required environment variable: MSSQL_URL "
+            "(or set MSSQL_ENABLED=false for demo-only)"
+        )
+    mssql_connection_string = _mssql_url
+else:
+    # Engine still constructed for import compatibility; never used when disabled.
+    mssql_connection_string = (
+        _mssql_url
+        or "mssql+pyodbc://unused:unused@localhost/unused"
+        "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+    )
 engine = create_engine(mssql_connection_string)  # <-- MSSQL engine (kept for routes)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
-# PostgreSQL (app CRUD). Override with POSTGRES_URL in backend/.env
-postgres_url = os.getenv(
-    "POSTGRES_URL",
-    "postgresql+psycopg2://postgres:Hercules@localhost:5432/sap",
-)
+# PostgreSQL (app CRUD). Required — no credential fallback (B5).
+postgres_url = os.getenv("POSTGRES_URL", "").strip()
+if not postgres_url:
+    raise RuntimeError(
+        "Missing required environment variable: POSTGRES_URL "
+        "(see backend/.env.example)"
+    )
 postgres_engine = create_engine(postgres_url)
 PostgresSessionLocal = sessionmaker(bind=postgres_engine, autocommit=False, autoflush=False)
 
