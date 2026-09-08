@@ -539,7 +539,10 @@ class SAPConfirmationService:
         Returns:
             Dict with confirmation results including per-order status
         """
-        endpoint = "/zmi_conf_online/CONF"
+        # Path from system_settings sap_endpoint_confirm_online (Engineering page).
+        # It was a literal, so the field on that screen displayed a value that
+        # nothing read -- editing it changed nothing.
+        endpoint = self._rc.sap_endpoint("confirm_online")
         
         # Log confirmation start
         log_id = log_sap_event(
@@ -1771,7 +1774,8 @@ class SAPConfirmationService:
         """
         log.info(f"🚀 confirm_offline() called with {len(orders_data)} order(s), mock_mode={self.mock_mode}")
         
-        endpoint = "/zmi_conf_offlin/CONFOFF"
+        # Path from system_settings sap_endpoint_confirm_offline; see above.
+        endpoint = self._rc.sap_endpoint("confirm_offline")
         
         # Log confirmation start (wrap in try/except to not block if logging fails)
         try:

@@ -97,8 +97,9 @@ SETTINGS_LIST = [
             "SAP connection", "Password", secret=True),
     Setting("sap_client", "SAP_CLIENT", "250",
             "SAP connection", "Client",
-            help="SAP client number. Note that the KPI shift auto-sync has "
-                 "historically passed 200 instead; see the Engineering notes."),
+            help="SAP client number. Used by every SAP call, including the KPI "
+                 "shift auto-sync, which until 2026-09-08 passed a hardcoded "
+                 "200 and ignored this field."),
     Setting("sap_timeout", "SAP_TIMEOUT", 30, "SAP connection", "Timeout (s)",
             kind="integer", minimum=1,
             help="Per-request timeout for every SAP call."),

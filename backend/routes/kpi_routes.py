@@ -2517,7 +2517,7 @@ def send_milling_kpis_to_sap():
             }), 200
 
         # Get SAP URL (mock or production)
-        SAP_URL = get_sap_url("/zmi_kpi_mill/MKPI", client="250")
+        SAP_URL = get_sap_url(_rc.sap_endpoint("kpi_milling"))
         logger.info(f"Using URL: {SAP_URL}")
         
         from requests.auth import HTTPBasicAuth
@@ -2775,7 +2775,7 @@ def send_packing_kpis_to_sap():
             }), 200
 
         # Get SAP URL (mock or production)
-        SAP_URL = get_sap_url("/zmi_kpi_pack/PKPI", client="250")
+        SAP_URL = get_sap_url(_rc.sap_endpoint("kpi_packing"))
         logger.info(f"Using URL: {SAP_URL}")
         
         from requests.auth import HTTPBasicAuth
@@ -3099,8 +3099,8 @@ def send_all_kpis_to_sap():
         # Step 6: SAP endpoint configuration (HTTPS)
         # milling_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_mill/MKPI?sap-client=200"
         # packing_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_pack/PKPI?sap-client=200"
-        milling_endpoint = get_sap_url("/zmi_kpi_mill/MKPI")
-        packing_endpoint = get_sap_url("/zmi_kpi_pack/PKPI")
+        milling_endpoint = get_sap_url(_rc.sap_endpoint("kpi_milling"))
+        packing_endpoint = get_sap_url(_rc.sap_endpoint("kpi_packing"))
         
         logger.info(f"SAP endpoints configured (HTTPS):")
         logger.info(f"  Milling: {milling_endpoint}")
@@ -3234,7 +3234,7 @@ def send_all_kpis_to_sap():
                     elif isinstance(value, Decimal):
                         herc_payload[key] = float(value)
 
-                herc_url = get_sap_url("/zmi_raw_hercl/HERC", client="250")
+                herc_url = get_sap_url(_rc.sap_endpoint("hercules_raw"))
 
                 if get_mock_sap_mode():
                     # simple mock post
@@ -3315,9 +3315,15 @@ def test_sap_connection():
     try:
         logger.info("Testing SAP connection")
         
-        # Test endpoints (HTTPS)
-        milling_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_mill/MKPI?sap-client=200"
-        packing_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_pack/PKPI?sap-client=200"
+        # Built through get_sap_url so this honours mock mode and the configured
+        # host, endpoint and client.
+        #
+        # These two were fully hardcoded production URLs carrying sap-client=200,
+        # which meant "test SAP connection" reached the real plant SAP host even
+        # with mock mode on and the Engineering page showing client 250 -- a demo
+        # could talk to production. Found 2026-09-08.
+        milling_endpoint = get_sap_url(_rc.sap_endpoint("kpi_milling"))
+        packing_endpoint = get_sap_url(_rc.sap_endpoint("kpi_packing"))
         
         results = {
             "milling_endpoint": {"url": milling_endpoint, "status": "unknown", "response": ""},
@@ -3469,7 +3475,7 @@ def send_hercules_to_sap():
                     hercules_data[key] = float(value)
         
         # Get SAP URL (mock or production)
-        SAP_URL = get_sap_url("/zmi_raw_hercl/HERC", client="250")
+        SAP_URL = get_sap_url(_rc.sap_endpoint("hercules_raw"))
         logger.info(f"Using URL: {SAP_URL}")
         
         from requests.auth import HTTPBasicAuth

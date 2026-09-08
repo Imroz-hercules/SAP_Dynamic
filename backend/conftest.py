@@ -96,3 +96,65 @@ def fail_on_counted_check_failures(request):
             f"Run `python {module.__name__}.py` to see which checks failed.",
             pytrace=False,
         )
+
+
+# ---------------------------------------------------------------------------
+# system_settings must survive a test run
+#
+# Several suites write settings on purpose -- test_runtime_config stores
+# "/stored/ENDPOINT" to prove the database wins over .env, test_validator_interval
+# stores "not-a-number" to prove a bad value falls back -- and each restores the
+# original in its own main() finally block.
+#
+# pytest never calls main(). It imports the module and calls the test_* functions
+# directly, so that finally block does not run and the junk stays in the table.
+# Found 2026-09-08 the obvious way: the Engineering screen was showing
+# "Process orders = /stored/ENDPOINT" with a DATABASE badge, and
+# get_all_settings() was raising "could not convert string to float:
+# 'not-a-number'" on every call.
+#
+# The standalone runners already clean up correctly. This gives pytest the same
+# guarantee, in one place, without editing any suite: snapshot the table before
+# the session and put it back afterwards.
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_settings():
+    """{key: (value, value_type)} for every row, or None if there is no database."""
+    try:
+        from database import PostgresSessionLocal
+        from models.system_settings import SystemSettings
+
+        with PostgresSessionLocal() as db:
+            return {s.key: (s.value, s.value_type) for s in db.query(SystemSettings).all()}
+    except Exception:
+        return None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def restore_system_settings():
+    """Leave system_settings exactly as the session found it."""
+    before = _snapshot_settings()
+    yield
+    if before is None:
+        return
+
+    try:
+        from database import PostgresSessionLocal
+        from models.system_settings import SystemSettings
+
+        with PostgresSessionLocal() as db:
+            for row in db.query(SystemSettings).all():
+                if row.key not in before:
+                    db.delete(row)            # added by a test
+                else:
+                    value, value_type = before[row.key]
+                    if row.value != value or row.value_type != value_type:
+                        row.value, row.value_type = value, value_type
+            present = {s.key for s in db.query(SystemSettings).all()}
+            for key, (value, value_type) in before.items():
+                if key not in present:        # deleted by a test
+                    db.add(SystemSettings(key=key, value=value, value_type=value_type))
+            db.commit()
+    except Exception as exc:
+        print(f"\nWARNING: could not restore system_settings: {exc}")
