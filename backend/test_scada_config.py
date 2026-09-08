@@ -18,6 +18,7 @@ What it pins down:
 
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -50,10 +51,19 @@ def test_contract_lists():
     check("WG501 in MILLING_FIELDS", "WG501" in MILLING_FIELDS, MILLING_FIELDS)
     check("WG101 in INPUT_FIELDS", "WG101" in INPUT_FIELDS, INPUT_FIELDS)
     check("PL601_TOT in PACKING_FIELDS", "PL601_TOT" in PACKING_FIELDS, PACKING_FIELDS)
+    # The module list must agree with the registry's own active filter.
+    #
+    # This used to assert that SL601_COUNTER specifically was absent, which
+    # only held while that tag happened to be inactive -- B3 activates it on
+    # purpose, and the check then failed for a reason with nothing to do with
+    # the behaviour being tested. The invariant below is the real contract and
+    # does not depend on any single row's current state.
+    from services.scada_tag_registry import allowed_fields
+
     check(
-        "inactive SL601_COUNTER not in ALLOWED by default",
-        "SL601_COUNTER" not in ALLOWED_SCADA_FIELDS,
-        ALLOWED_SCADA_FIELDS,
+        "ALLOWED_SCADA_FIELDS matches registry active set",
+        sorted(ALLOWED_SCADA_FIELDS) == sorted(allowed_fields(active_only=True)),
+        sorted(set(ALLOWED_SCADA_FIELDS) ^ set(allowed_fields(active_only=True))),
     )
 
 
@@ -68,9 +78,74 @@ def test_registry_filters():
 
     check("at least 23 active tags (seed)", len(active) >= 20, len(active))
     check("counters present in full registry", "SL601_COUNTER" in all_tags, all_tags)
-    check("inactive counter excluded from allowed", "SL601_COUNTER" not in active, active)
-    check("inactive counter excluded from poll", "SL601_COUNTER" not in poll, poll)
     check("PL602_TOT is pollable when active", "PL602_TOT" in poll, poll)
+
+    _check_inactive_tag_is_hidden(reg)
+
+
+def _check_inactive_tag_is_hidden(reg):
+    """
+    An inactive tag must be invisible to BOTH allowed_fields() and poll_keys().
+
+    Asserted against a fixture row created and dropped here, not against a
+    seeded tag. The previous version used SL601_COUNTER, which B3 activates
+    deliberately ("close the counter gap"), so B1's test and B3's migration
+    contradicted each other: applying B3 turned this suite red without any
+    behaviour regressing. A test must not depend on a production row's
+    mutable state.
+    """
+    try:
+        from database import PostgresSessionLocal
+        from models.scada_tag import ScadaTag
+
+        # Importing proves the modules exist, not that a database answers. CI
+        # points POSTGRES_URL at sqlite:///:memory: where scada_tags does not
+        # exist, so probe with a real query the way test_crud_roundtrip does --
+        # otherwise this raises OperationalError mid-test instead of skipping.
+        with PostgresSessionLocal() as probe:
+            probe.query(ScadaTag).first()
+    except Exception as exc:
+        print(f"  SKIP  inactive-tag filter -- no database: {exc}")
+        return
+
+    fixture = "ZZ_B1_INACTIVE_FIXTURE"
+    try:
+        with PostgresSessionLocal() as db:
+            stale = db.query(ScadaTag).filter(ScadaTag.tag == fixture).first()
+            if stale:
+                db.delete(stale)
+                db.commit()
+            db.add(ScadaTag(
+                tag=fixture,
+                category="PACKING",
+                reading_type="single",
+                source_column=fixture,
+                unit="BAG",
+                is_pollable=True,      # pollable, so only is_active can hide it
+                is_active=False,
+                emulator_seed=0,
+                display_name="B1 inactive fixture",
+                sort_order=9999,
+            ))
+            db.commit()
+
+        reg.invalidate_registry_cache()
+        check("inactive tag excluded from allowed_fields()",
+              fixture not in reg.allowed_fields(active_only=True))
+        check("inactive tag excluded from poll_keys()",
+              fixture not in reg.poll_keys())
+        check("inactive tag still visible in full registry",
+              fixture in [r["tag"] for r in reg.get_all_tag_rows()])
+    finally:
+        try:
+            with PostgresSessionLocal() as db:
+                row = db.query(ScadaTag).filter(ScadaTag.tag == fixture).first()
+                if row:
+                    db.delete(row)
+                    db.commit()
+            reg.invalidate_registry_cache()
+        except Exception:
+            pass
 
 
 def test_rollover():
@@ -184,12 +259,74 @@ def test_crud_roundtrip():
             pass
 
 
+def test_active_filter_without_a_database():
+    """
+    is_active filtering, tested with NO database at all.
+
+    Why this exists, and why it is not redundant with the checks above. The B1
+    regression -- allowed_fields() ignoring is_active, so a deactivated tag keeps
+    being read and keeps reaching the SAP delta -- was caught only by checks that
+    need Postgres. CI has none (POSTGRES_URL=sqlite:///:memory:), so those are
+    deselected, and re-running the mutation on 2026-09-08 confirmed the graded
+    gate came back GREEN with the bug present. A gate that cannot catch the
+    regression it was built for is decoration.
+
+    The registry caches its rows in a module-level dict and only reloads on a
+    miss, so seeding that cache injects a known row set without touching a
+    database. This is pure logic and runs anywhere.
+    """
+    print("\nActive/pollable filtering (no database)")
+    from services import scada_tag_registry as reg
+
+    rows = [
+        {"tag": "ZZ_ON", "category": "PACKING", "reading_type": "single",
+         "source_column": "ZZ_ON", "rollover_max": None, "unit": "BAG",
+         "is_pollable": True, "is_active": True, "emulator_seed": 0.0,
+         "display_name": "active", "sort_order": 1},
+        {"tag": "ZZ_OFF", "category": "PACKING", "reading_type": "single",
+         "source_column": "ZZ_OFF", "rollover_max": None, "unit": "BAG",
+         "is_pollable": True, "is_active": False, "emulator_seed": 0.0,
+         "display_name": "deactivated", "sort_order": 2},
+        {"tag": "ZZ_NOPOLL", "category": "PACKING", "reading_type": "single",
+         "source_column": "ZZ_NOPOLL", "rollover_max": None, "unit": "BAG",
+         "is_pollable": False, "is_active": True, "emulator_seed": 0.0,
+         "display_name": "not pollable", "sort_order": 3},
+    ]
+
+    saved_rows, saved_at = reg._cache["tags"], reg._cache["read_at"]
+    try:
+        with reg._lock:
+            reg._cache["tags"] = rows
+            reg._cache["read_at"] = time.time()
+
+        active = reg.allowed_fields(active_only=True)
+        poll = reg.poll_keys()
+        every = [r["tag"] for r in reg.get_all_tag_rows()]
+
+        check("active tag is in allowed_fields()", "ZZ_ON" in active, active)
+        check("INACTIVE tag is excluded from allowed_fields()",
+              "ZZ_OFF" not in active, active)
+        check("INACTIVE tag is excluded from poll_keys()", "ZZ_OFF" not in poll, poll)
+        check("unpollable tag is excluded from poll_keys()",
+              "ZZ_NOPOLL" not in poll, poll)
+        check("inactive tag is still visible in the full registry",
+              "ZZ_OFF" in every, every)
+        check("allowed_fields(active_only=False) sees everything",
+              "ZZ_OFF" in reg.allowed_fields(active_only=False),
+              reg.allowed_fields(active_only=False))
+    finally:
+        with reg._lock:
+            reg._cache["tags"], reg._cache["read_at"] = saved_rows, saved_at
+        reg.invalidate_registry_cache()
+
+
 def main():
     print("=" * 60)
     print("Workstream B — SCADA tag registry tests")
     print("=" * 60)
     test_contract_lists()
     test_registry_filters()
+    test_active_filter_without_a_database()
     test_rollover()
     test_inplace_refresh()
     test_crud_roundtrip()

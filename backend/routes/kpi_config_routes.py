@@ -14,7 +14,17 @@ from services.kpi_config_registry import (
     invalidate_kpi_config_cache,
 )
 
+from services.config_guard import admin_required_for_writes
+
 kpi_config_bp = Blueprint("kpi_config", __name__, url_prefix="/api/kpi-config")
+
+# Writes to this registry are production configuration -- deactivating a tag or
+# changing a ceiling changes the numbers that reach SAP -- and shipped with no
+# authentication at all (proven with a 201 from an unauthenticated POST on
+# 2026-09-08). Reads stay open so the screens are unaffected.
+# See services/config_guard.py.
+kpi_config_bp.before_request(admin_required_for_writes)
+
 
 
 def _as_bool(value, default=True):

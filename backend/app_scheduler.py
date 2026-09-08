@@ -285,10 +285,10 @@ try:
 except Exception as _reg_exc:
     log.debug("SCADA registry not applied at scheduler import: %s", _reg_exc)
 
-SOURCE_TABLE = os.getenv(
-    "SCADA_SOURCE_TABLE",
-    "[HerculesV2].[dbo].[ASMArchive_DB5]",
-)
+# B5: SOURCE_TABLE now resolves through runtime_config (database -> env
+# SCADA_SOURCE_TABLE -> this default), read fresh inside
+# poll_and_store_latest_scada() on every poll rather than once at import, so
+# an edit on the Engineering page takes effect without a restart.
 
 SCADA_INTERVAL_SECONDS = int(os.getenv("SCADA_POLL_INTERVAL_SEC", "60"))
 PO_PULL_INTERVAL_HOURS = float(os.getenv("PO_PULL_INTERVAL_HOURS", "3"))
@@ -334,7 +334,10 @@ def poll_and_store_latest_scada():
                 return
         else:
             # Fetch from MSSQL database (production mode)
-            latest_sql = text(f"SELECT TOP 1 * FROM {SOURCE_TABLE} ORDER BY [CreatedOn] DESC")
+            from services.runtime_config import scada_source_table
+
+            source_table = scada_source_table()
+            latest_sql = text(f"SELECT TOP 1 * FROM {source_table} ORDER BY [CreatedOn] DESC")
             with mssql_engine.connect() as conn:
                 row = conn.execute(latest_sql).mappings().first()
                 if not row:
@@ -382,7 +385,9 @@ def poll_and_store_kpi_data():
         log.warning("PostgreSQL engine not configured; skipping KPI insert.")
         return
     try:
-        response = requests.get("http://localhost:5000/api/kpi", timeout=10)
+        # The app calling its own API: port from the environment, not a literal.
+        _port = os.environ.get("BACKEND_PORT", os.environ.get("PORT", os.environ.get("FLASK_RUN_PORT", "5000")))
+        response = requests.get(f"http://127.0.0.1:{_port}/api/kpi", timeout=10)
         response.raise_for_status()
         kpi_data = response.json()
         store_split_tables(kpi_data, mode="latest")

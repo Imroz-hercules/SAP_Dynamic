@@ -180,27 +180,33 @@ export function WaterSystemLayout({ children, title, subtitle, onLogout }: Water
               <div className="text-cyan-400 light:text-blue-600">{formatTime(currentDateTime)}</div>
             </div>
 
-            {/* System Mode Indicator - Clickable when Demo Mode is active */}
+            {/* System Mode Indicator — status only, both branches.
+                This used to link to /engineering?tab=demo. That tab has been removed,
+                and the link would have fallen back to the Connection tab without
+                saying why, so a control that no longer leads anywhere is now just the
+                status it always showed. It still reports demo vs production and
+                whether the emulator is ticking; demo mode itself is set by
+                system_settings.demo_mode_enabled and MSSQL_ENABLED in .env. */}
             {isDemoMode ? (
-              <Link href="/engineering?tab=demo">
-                <div 
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg backdrop-blur-sm border cursor-pointer transition-all hover:scale-105 hover:shadow-lg bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50`}
-                  title="Click to open Demo Mode settings"
-                >
-                  <div className="relative flex items-center">
-                    <Zap className="h-4 w-4 text-amber-400" />
-                    {isEmulatorRunning && (
-                      <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping" />
-                    )}
-                  </div>
-                  <div className="text-xs">
-                    <div className="font-medium text-amber-400">DEMO</div>
-                    <div className="text-amber-400/60 text-[10px]">
-                      {isEmulatorRunning ? '● Emulator Running' : '○ Emulator Stopped'}
-                    </div>
+              <div
+                className="flex items-center space-x-2 px-3 py-1.5 rounded-lg backdrop-blur-sm border bg-amber-500/10 border-amber-500/30"
+                title={isEmulatorRunning
+                  ? 'Demo mode: readings come from the built-in SCADA emulator'
+                  : 'Demo mode: the emulator is stopped, so no new readings are arriving'}
+              >
+                <div className="relative flex items-center">
+                  <Zap className="h-4 w-4 text-amber-400" />
+                  {isEmulatorRunning && (
+                    <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping" />
+                  )}
+                </div>
+                <div className="text-xs">
+                  <div className="font-medium text-amber-400">DEMO</div>
+                  <div className="text-amber-400/60 text-[10px]">
+                    {isEmulatorRunning ? '● Emulator Running' : '○ Emulator Stopped'}
                   </div>
                 </div>
-              </Link>
+              </div>
             ) : (
               <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg backdrop-blur-sm border bg-green-500/10 border-green-500/30">
                 <div className="relative flex items-center">

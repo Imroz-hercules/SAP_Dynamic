@@ -7,6 +7,11 @@ on:
 
 jobs:
   deploy:
+    # Guard added 2026-08-22. This job resets the deployment checkout hard, reinstalls
+    # dependencies and restarts the live Backend and Frontend services. It must only ever run
+    # from the repository that owns the deployment host. On any fork or personal mirror it is
+    # inert, so a mirror can carry the file without a stray push touching production.
+    if: github.repository == 'Imroz-hercules/SAP_Dynamic'
     runs-on: self-hosted
 
     steps:

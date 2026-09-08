@@ -10,10 +10,10 @@ interface ScadaData {
   totalFlour: number;
   flour: number;
   totalBran: number;
-  totalWheat: number;
-  totalPreCleaningWater: number;
-  waterCleanWheat: number;
-  totalWaterUsed: number;
+  totalWheat: number | null;
+  totalPreCleaningWater: number | null;
+  waterCleanWheat: number | null;
+  totalWaterUsed: number | null;
   
   // Packing inputs
   actualPackingOutput: number;
@@ -21,8 +21,8 @@ interface ScadaData {
   packingGoodOutput: number;
   packingTotalOutput: number;
   packingPlannedOutput: number;
-  packingNetHours: number;
-  packingTotalHours: number;
+  packingNetHours: number | null;
+  packingTotalHours: number | null;
   
   // Live monitoring data
   scale: number;
@@ -102,10 +102,16 @@ export function ScadaProvider({ children }: { children: React.ReactNode }) {
         totalFlour: data.totalFlour || 0,
         flour: data.flour || 0,
         totalBran: data.totalBran || 0,
-        totalWheat: data.totalWheat || 0,
-        totalPreCleaningWater: data.totalPreCleaningWater || 0,
-        waterCleanWheat: data.waterCleanWheat || 0,
-        totalWaterUsed: data.totalWaterUsed || 0,
+        // These six are rendered directly by ScadaReadings.tsx, which shows
+        // NO DATA rather than a number that was never measured (B7). `|| 0`
+        // here defeated that: a field absent from the response arrived as the
+        // literal 0, the screen saw a valid number, and it printed 0.00 --
+        // indistinguishable from a real zero reading. `?? null` keeps the
+        // distinction the screen already knows how to display.
+        totalWheat: data.totalWheat ?? null,
+        totalPreCleaningWater: data.totalPreCleaningWater ?? null,
+        waterCleanWheat: data.waterCleanWheat ?? null,
+        totalWaterUsed: data.totalWaterUsed ?? null,
         
         // Packing inputs from real SCADA data
         actualPackingOutput: data.actualPackingOutput || 0,
@@ -113,8 +119,8 @@ export function ScadaProvider({ children }: { children: React.ReactNode }) {
         packingGoodOutput: data.packingGoodOutput || 0,
         packingTotalOutput: data.packingTotalOutput || 0,
         packingPlannedOutput: data.packingPlannedOutput || 0,
-        packingNetHours: data.packingNetHours || 0,
-        packingTotalHours: data.packingTotalHours || 0,
+        packingNetHours: data.packingNetHours ?? null,
+        packingTotalHours: data.packingTotalHours ?? null,
         
         // Metadata
         lastUpdated: data.lastUpdated,

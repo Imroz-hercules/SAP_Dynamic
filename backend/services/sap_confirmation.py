@@ -377,9 +377,60 @@ class SAPConfirmationService:
         # ✅ Fallback: Get current shift from database only if shift was not provided
         if not shift:
             plant = order.get('plant', '')
-            # Determine department based on plant (3130 = MILLING, others = PACKING)
-            department = "MILLING" if plant and "3130" in str(plant) else "PACKING"
-            
+            # Department from the MATERIAL, via classification_rules (A1) -- not from
+            # the plant code.
+            #
+            # This used to be:
+            #     department = "MILLING" if plant and "3130" in str(plant) else "PACKING"
+            #
+            # services/classification_service.py documents that exact rule as wrong and
+            # deliberately leaves resolve_department() unwired because of it:
+            # shift_master holds BOTH milling and packing shifts for plant 3130, so a
+            # plant->department rule reclassifies every packing order at 3130 as
+            # milling. That matters here because the two schedules differ -- milling
+            # runs three 8-hour shifts, packing two 12-hour ones -- so the wrong
+            # department picks the wrong shift row and sends the wrong "SHIFT" to SAP.
+            department = None
+            material = order.get('material', '')
+            if material:
+                try:
+                    from services.classification_service import resolve_order_type
+
+                    department = resolve_order_type(material)
+                except Exception as exc:
+                    log.warning("Could not classify material %r for shift lookup: %s",
+                                material, exc)
+
+            if not department:
+                # No material, or no rule matches it. Rather than silently applying the
+                # plant heuristic that is known to be wrong, say so: the order is
+                # reported and the lookup falls back to MILLING, which is what the old
+                # code did for the only plant that exists today.
+                department = "MILLING"
+                log.error(
+                    "Cannot determine department for PO %s (material=%r, plant=%r): no "
+                    "classification rule matched. Falling back to %s for the shift "
+                    "lookup -- the SHIFT sent to SAP may be wrong. Add a "
+                    "classification_rules row for this material.",
+                    order.get('po_number', 'unknown'), material, plant, department,
+                )
+                try:
+                    from services.error_logger import log_order_error
+
+                    log_order_error(
+                        po_number=str(order.get('po_number') or ''),
+                        error_type="configuration_error",
+                        error_message=(
+                            f"No classification rule matched material {material!r}, so the "
+                            f"department could not be determined and the shift was looked "
+                            f"up as {department}. The SHIFT value sent to SAP may be wrong."
+                        ),
+                        payload={"material": material, "plant": str(plant)},
+                        source="sap_confirmation",
+                    )
+                except Exception:
+                    pass
+
             shift = "A"  # Default fallback
             with PostgresSessionLocal() as db:
                 shift_row = get_current_shift(plant, department, db)
@@ -527,7 +578,7 @@ class SAPConfirmationService:
                     post_response = requests.post(
                         url,
                         json=json_data,
-                        timeout=30
+                        timeout=self.timeout
                     )
                     log.info(f"POST response status: {post_response.status_code}")
                     log.info(f"POST response: {post_response.text[:500]}")
@@ -565,7 +616,7 @@ class SAPConfirmationService:
                     url,
                     headers=get_headers,
                     auth=(self.username, self.password),
-                    timeout=30,
+                    timeout=self.timeout,
                     verify=False  # Ignore SSL certificate errors
                 )
                 
@@ -638,7 +689,7 @@ class SAPConfirmationService:
                     headers=post_headers,
                     cookies=cookies,
                     auth=(self.username, self.password),
-                    timeout=30,
+                    timeout=self.timeout,
                     verify=False
                 )
                 
@@ -1787,7 +1838,7 @@ class SAPConfirmationService:
                     post_response = requests.post(
                         url,
                         json=json_data,
-                        timeout=30
+                        timeout=self.timeout
                     )
                     log.info(f"✅ MOCK MODE: POST response status: {post_response.status_code}")
                     log.info(f"✅ MOCK MODE: POST response headers: {dict(post_response.headers)}")
@@ -1853,7 +1904,7 @@ class SAPConfirmationService:
                     url,
                     headers=get_headers,
                     auth=(self.username, self.password),
-                    timeout=30,
+                    timeout=self.timeout,
                     verify=False  # Ignore SSL certificate errors
                 )
                 
@@ -1920,7 +1971,7 @@ class SAPConfirmationService:
                     headers=post_headers,
                     cookies=cookies,
                     auth=(self.username, self.password),
-                    timeout=30,
+                    timeout=self.timeout,
                     verify=False
                 )
                 

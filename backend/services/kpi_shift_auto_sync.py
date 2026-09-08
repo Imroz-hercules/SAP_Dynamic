@@ -97,8 +97,21 @@ def _parse_time(time_val):
     return None
 
 
-def get_sap_url(endpoint: str, client: str = "200") -> str:
-    """Get the full SAP URL for an endpoint."""
+def get_sap_url(endpoint: str, client: str = None) -> str:
+    """
+    Get the full SAP URL for an endpoint.
+
+    ``client`` defaults to system_settings ``sap_client`` (Engineering page)
+    rather than a literal. It was hardcoded to "200" here, and both call
+    sites passed "200" again, while runtime_config resolves 250 -- so every
+    shift-end KPI confirmation went to a different SAP client than the one
+    the configuration screen displayed. runtime_config.py's own docstring
+    had already flagged this module for exactly that (found 2026-09-08).
+    """
+    if client is None:
+        from services.runtime_config import sap_client as _sap_client
+
+        client = _sap_client()
     if get_mock_sap_mode():
         return f"{_sap_mock_base_url()}{endpoint}"
     else:
@@ -188,7 +201,7 @@ def send_milling_kpis_to_sap_internal(shift_code: str = None):
             "SHIFT": shift_code or ""
         }
 
-        SAP_URL = get_sap_url("/zmi_kpi_mill/MKPI", client="200")
+        SAP_URL = get_sap_url("/zmi_kpi_mill/MKPI")
         
         # MOCK MODE
         if get_mock_sap_mode():
@@ -293,7 +306,7 @@ def send_packing_kpis_to_sap_internal(shift_code: str = None):
             "SHIFT": shift_code or ""
         }
 
-        SAP_URL = get_sap_url("/zmi_kpi_pack/PKPI", client="200")
+        SAP_URL = get_sap_url("/zmi_kpi_pack/PKPI")
         
         # MOCK MODE
         if get_mock_sap_mode():

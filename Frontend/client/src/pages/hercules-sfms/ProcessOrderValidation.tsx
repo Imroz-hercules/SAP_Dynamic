@@ -2603,9 +2603,14 @@ const ProcessOrderValidation = () => {
       };
 
       const sapPayload = fullOrderData ? {
-        UOM: fullOrderData.unit || fullOrderData.uom || "TO",
+        // This object is shown to the operator as a "SAP Payload" preview (it is
+        // put into validationDetails, not posted). UOM and PLANT used to fall back
+        // to "TO" and "3130", so a missing value was displayed as though it were
+        // the real one that had been submitted — and 3130 is the milling plant, so
+        // a packing order could show the wrong one. Absent means absent.
+        UOM: fullOrderData.unit || fullOrderData.uom || "(not set)",
         BATCH: fullOrderData.batch || "",
-        PLANT: fullOrderData.plant || "3130",
+        PLANT: fullOrderData.plant || "(not set)",
         SHIFT: currentShift,
         SCALE1: scale1,
         SCALE2: scale2,

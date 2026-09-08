@@ -18,7 +18,17 @@ from services.scada_tag_registry import (
     refresh_consumer_lists,
 )
 
+from services.config_guard import admin_required_for_writes
+
 scada_config_bp = Blueprint("scada_config", __name__, url_prefix="/api/scada-config")
+
+# Writes to this registry are production configuration -- deactivating a tag or
+# changing a ceiling changes the numbers that reach SAP -- and shipped with no
+# authentication at all (proven with a 201 from an unauthenticated POST on
+# 2026-09-08). Reads stay open so the screens are unaffected.
+# See services/config_guard.py.
+scada_config_bp.before_request(admin_required_for_writes)
+
 
 
 def _as_bool(value, default=True):

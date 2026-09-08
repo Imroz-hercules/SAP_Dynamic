@@ -30,3 +30,6 @@ scada-emulator/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Nexus evidence store (plans, verdict logs, worker worktrees); state, not source
+.nexus/

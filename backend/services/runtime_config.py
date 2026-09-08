@@ -136,6 +136,15 @@ SETTINGS_LIST = [
             help="Assumed for orders that arrive from SAP without a plant. "
                  "Used to pick shift rows out of shift_master."),
 
+    # ---- SCADA ---------------------------------------------------------------
+    Setting("scada_source_table", "SCADA_SOURCE_TABLE",
+            "[HerculesV2].[dbo].[ASMArchive_DB5]", "SCADA", "Source table",
+            help="MSSQL table polled for the latest SCADA row "
+                 "(app_scheduler.poll_and_store_latest_scada). Read fresh on "
+                 "every poll, unlike the poll interval below — a saved change "
+                 "applies within the settings cache TTL (about 15s), no "
+                 "restart needed."),
+
     # ---- Reference only ----------------------------------------------------
     Setting("scada_poll_interval_sec", "SCADA_POLL_INTERVAL_SEC", 60,
             "Intervals (restart required)", "SCADA poll (s)",
@@ -430,6 +439,11 @@ def mssql_enabled() -> bool:
 
 def mssql_url() -> str:
     return str(resolve("mssql_url") or "")
+
+
+def scada_source_table() -> str:
+    """The MSSQL table app_scheduler polls for the latest SCADA row."""
+    return str(resolve("scada_source_table") or "")
 
 
 def missing_required() -> list:
