@@ -65,7 +65,7 @@ class Setting:
     """One configurable value, and everything the page needs to render it."""
 
     def __init__(self, key, env_var, default, group, label,
-                 kind="string", secret=False, editable=True, help=""):
+                 kind="string", secret=False, editable=True, help="", minimum=None):
         self.key = key
         self.env_var = env_var
         self.default = default
@@ -75,6 +75,11 @@ class Setting:
         self.secret = secret      # masked on read, never returned in full
         self.editable = editable  # False -> shown for reference only
         self.help = help
+        # Smallest meaningful value. A timeout of 0 is not a setting, it is a
+        # broken one - every request would fail instantly. Enforced on write,
+        # and ignored on read so a bad row already in the table cannot make the
+        # page disagree with what the application actually uses.
+        self.minimum = minimum
 
 
 # The order here is the order the page renders.
@@ -95,7 +100,8 @@ SETTINGS_LIST = [
             help="SAP client number. Note that the KPI shift auto-sync has "
                  "historically passed 200 instead; see the Engineering notes."),
     Setting("sap_timeout", "SAP_TIMEOUT", 30, "SAP connection", "Timeout (s)",
-            kind="integer", help="Per-request timeout for every SAP call."),
+            kind="integer", minimum=1,
+            help="Per-request timeout for every SAP call."),
 
     # ---- SAP endpoints -----------------------------------------------------
     Setting("sap_endpoint_orders", "SAP_ENDPOINT", "/zmi_get_orders/GETORD",
@@ -123,7 +129,7 @@ SETTINGS_LIST = [
 
     # ---- Validator ---------------------------------------------------------
     Setting("auto_validator_interval_seconds", None, 1.0, "Validator",
-            "Cycle interval (s)", kind="float",
+            "Cycle interval (s)", kind="float", minimum=0.1,
             help="How long the auto-validation worker sleeps between cycles. "
                  "Clamped to 0.1-60. Applies within about 10 seconds."),
     Setting("default_plant", None, "3130", "Validator", "Default plant",
@@ -133,12 +139,12 @@ SETTINGS_LIST = [
     # ---- Reference only ----------------------------------------------------
     Setting("scada_poll_interval_sec", "SCADA_POLL_INTERVAL_SEC", 60,
             "Intervals (restart required)", "SCADA poll (s)",
-            kind="integer", editable=False,
+            kind="integer", editable=False, minimum=1,
             help="Baked into the APScheduler job at startup. Changing it needs "
                  "a restart. Making it live is Workstream B's task (B5)."),
     Setting("po_pull_interval_hours", "PO_PULL_INTERVAL_HOURS", 3.0,
             "Intervals (restart required)", "SAP order pull (h)",
-            kind="float", editable=False,
+            kind="float", editable=False, minimum=0.1,
             help="Same — baked into the job at startup."),
 ]
 
@@ -178,6 +184,16 @@ def _coerce(setting: Setting, raw: Any) -> Any:
         except (TypeError, ValueError):
             return None
     return str(raw)
+
+
+def _below_minimum(setting: Setting, value: Any) -> bool:
+    """True when a numeric value is below what the setting can meaningfully be."""
+    if setting.minimum is None or isinstance(value, bool):
+        return False
+    try:
+        return float(value) < float(setting.minimum)
+    except (TypeError, ValueError):
+        return False
 
 
 def _load_from_db() -> Dict[str, Any]:
@@ -230,7 +246,7 @@ def resolve(key: str) -> Any:
     raw = _stored().get(key)
     if raw is not None and str(raw).strip() != "":
         value = _coerce(setting, raw)
-        if value is not None:
+        if value is not None and not _below_minimum(setting, value):
             return value
 
     if setting.env_var:
@@ -251,7 +267,11 @@ def source_of(key: str) -> str:
 
     raw = _stored().get(key)
     if raw is not None and str(raw).strip() != "":
-        return "database"
+        value = _coerce(setting, raw)
+        # A stored value the reader will not use must not be reported as the
+        # source, or the page shows one number while the app uses another.
+        if value is not None and not _below_minimum(setting, value):
+            return "database"
     if setting.env_var and (os.getenv(setting.env_var) or "").strip() != "":
         return "env"
     return "default"
@@ -319,6 +339,12 @@ def apply(updates: Dict[str, Any]) -> Dict[str, Any]:
         coerced = _coerce(setting, value)
         if coerced is None:
             skipped.append({"key": key, "reason": f"not a valid {setting.kind}"})
+            continue
+        if _below_minimum(setting, coerced):
+            skipped.append({
+                "key": key,
+                "reason": f"must be at least {setting.minimum}",
+            })
             continue
 
         stored = "true" if coerced is True else "false" if coerced is False else str(coerced)
