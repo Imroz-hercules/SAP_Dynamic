@@ -6,7 +6,11 @@ import { shiftApi, ShiftMaster } from '../lib/api';
 interface ShiftIndicatorProps {
   operation: 'milling' | 'packing';
   className?: string;
-  plant?: string; // Optional plant code, defaults to '3130' for milling, others for packing
+  /**
+   * Optional plant code. When omitted the component does not guess one — it
+   * matches on department alone. See the note in the component body.
+   */
+  plant?: string;
 }
 
 const ShiftIndicator: React.FC<ShiftIndicatorProps> = ({ operation, className = '', plant }) => {
@@ -16,8 +20,20 @@ const ShiftIndicator: React.FC<ShiftIndicatorProps> = ({ operation, className = 
   const [currentShift, setCurrentShift] = useState<{ shift: string; start: string; end: string } | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
 
-  // Determine plant and department
-  const plantCode = plant || (operation === 'milling' ? '3130' : '3131');
+  // Department is what actually separates the schedules; the plant is optional.
+  //
+  // This used to be `plant || (operation === 'milling' ? '3130' : '3131')`, and
+  // no caller passes `plant` — all four call sites are `<ShiftIndicator
+  // operation="..." />`. shift_master has no plant 3131 at all: its PACKING
+  // shifts (A 07:00-19:00, B 19:00-07:00) sit under plant 3130 alongside the
+  // three MILLING ones. So the packing indicator matched zero rows and rendered
+  // nothing at all — a silent blank rather than a wrong number, but still a
+  // hardcoded plant code deciding what an operator sees. Found 2026-09-08.
+  //
+  // Filtering on department alone is correct for one plant and stays correct for
+  // several, because a caller that has a plant in hand passes it and both
+  // filters apply.
+  const plantCode = plant;
   const department = operation === 'milling' ? 'MILLING' : 'PACKING';
 
   // Fetch shifts from database
@@ -26,9 +42,9 @@ const ShiftIndicator: React.FC<ShiftIndicatorProps> = ({ operation, className = 
       try {
         setLoading(true);
         const allShifts = await shiftApi.getShifts();
-        // Filter shifts by plant and department
+        // Department always applies; plant only when the caller supplied one.
         const filteredShifts = allShifts.filter(
-          s => s.plant === plantCode && s.department === department
+          s => s.department === department && (!plantCode || s.plant === plantCode)
         ).sort((a, b) => a.sort_order - b.sort_order);
         setShifts(filteredShifts);
       } catch (error) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Package, Plus, X, Edit, Trash2 } from 'lucide-react';
 import { WaterSystemLayout } from '../../components/hercules-sfms/WaterSystemLayout';
@@ -304,16 +304,39 @@ const PalletizerMapping = () => {
     ? 'w-full px-4 py-3 pr-10 rounded-xl bg-white/95 border-2 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-xl appearance-none cursor-pointer bg-no-repeat bg-right bg-[length:20px] bg-[url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%234b5563\'%3e%3cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'/%3e%3c/svg%3e")] hover:border-slate-300 backdrop-blur-sm text-sm'
     : 'w-full px-4 py-3 pr-10 rounded-xl bg-slate-800/95 border-2 border-cyan-500/50 text-cyan-100 focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all duration-300 shadow-lg hover:shadow-xl focus:shadow-xl focus:shadow-cyan-500/30 appearance-none cursor-pointer bg-no-repeat bg-right bg-[length:20px] bg-[url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2306b6d4\'%3e%3cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'/%3e%3c/svg%3e")] hover:border-cyan-400/70 backdrop-blur-sm text-sm';
 
-  // Palletizer options
-  const palletizerOptions = ['PL601', 'PL602', 'PL603', 'PL606', 'PL607'];
-  
-  // Production Version options
-  const versionOptions = [
-    'CKL1', 'CKL2', 'BKL1', 'BKL2', 'BWL1', 'BWL2', 
-    'IWL1', 'IWL2', 'BK10', 'BW10', 'IW10', 'CK10', 
-    'EB25', 'BR40', 'CM01', 'BM01', 'QRC1', 'QRW1', 
+  // Both dropdowns come from the mappings this page already loads, so a line or
+  // version added to palletizer_mapping shows up here without a redeploy.
+  //
+  // They used to be two literal arrays — 5 palletizers and 21 versions. On
+  // 2026-09-08 those matched the database exactly, which is precisely why it was
+  // easy to miss: the screen that configures the dynamic mapping could only ever
+  // offer values someone had typed into the source.
+  //
+  // The literals are kept as a bootstrap for the first render and for the case
+  // where the API returns nothing, the same pattern LiveMonitor.tsx and
+  // ScadaReadings.tsx use for their row lists.
+  const PALLETIZER_BOOTSTRAP = ['PL601', 'PL602', 'PL603', 'PL606', 'PL607'];
+  const VERSION_BOOTSTRAP = [
+    'CKL1', 'CKL2', 'BKL1', 'BKL2', 'BWL1', 'BWL2',
+    'IWL1', 'IWL2', 'BK10', 'BW10', 'IW10', 'CK10',
+    'EB25', 'BR40', 'CM01', 'BM01', 'QRC1', 'QRW1',
     'MM01', 'BK05', 'CK05'
   ];
+
+  const distinct = (values: (string | null | undefined)[], fallback: string[]) => {
+    const found = Array.from(new Set(values.filter((v): v is string => !!v && v.trim() !== '')));
+    return found.length > 0 ? found.sort() : fallback;
+  };
+
+  const palletizerOptions = useMemo(
+    () => distinct(palletizers.map(p => p.palletizer), PALLETIZER_BOOTSTRAP),
+    [palletizers]
+  );
+
+  const versionOptions = useMemo(
+    () => distinct(palletizers.map(p => p.version), VERSION_BOOTSTRAP),
+    [palletizers]
+  );
 
   return (
     <WaterSystemLayout 

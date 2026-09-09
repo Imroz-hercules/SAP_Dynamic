@@ -13,6 +13,31 @@ interface Props {
   validationResult?: ValidationResult | null;
 }
 
+
+// A scale reading the backend did not report is NOT zero.
+//
+// Every actuals lookup here used `|| 0`, so a key missing from the response --
+// a renamed backend field, or a version whose scales differ from the WG202 /
+// WG501+WG502 / WG503 set these labels assume -- rendered as "0.00 KG" and an
+// "Input Difference" computed against it. An operator could not tell that from
+// a real zero reading. Found 2026-09-08.
+//
+// The tag names below still mirror the keys the backend puts in `actuals`,
+// which come from the order's milling_version_mappings row; they are labels for
+// what was returned, not a second source of truth for which scales to read.
+const actualOf = (
+  actuals: Record<string, number | undefined> | undefined,
+  key: string,
+): number | null => {
+  const v = actuals?.[key];
+  return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+};
+
+const NO_DATA = 'NO DATA';
+
+const asKg = (v: number | null) => (v === null ? NO_DATA : `${(v * 1000).toFixed(2)} KG`);
+const asTons = (v: number | null) => (v === null ? NO_DATA : `(${v.toFixed(3)} T)`);
+
 const emptyLine = { material_code: '', gross_qty: 0, tare_qty: 0, uom: 'KG' as const };
 
 const OrderValidationModal: React.FC<Props> = ({ isOpen, onClose, orderId, defaults, onValidate, validationResult }) => {
@@ -712,10 +737,10 @@ return {
                       Actual Input (WG202):
                     </span>
                     <div className={`font-mono font-bold text-lg ${theme === 'light' ? 'text-blue-900' : 'text-blue-200'}`}>
-                      {((validationResult.actuals.WG202 || 0) * 1000).toFixed(2)} KG
+                      {asKg(actualOf(validationResult.actuals, "WG202"))}
                     </div>
                     <div className={`text-xs ${theme === 'light' ? 'text-blue-600' : 'text-blue-400'}`}>
-                      ({(validationResult.actuals.WG202 || 0).toFixed(3)} T)
+                      {asTons(actualOf(validationResult.actuals, "WG202"))}
                     </div>
                   </div>
                   <div>
@@ -749,10 +774,10 @@ return {
                       Flour Output (WG501+WG502):
                     </span>
                     <div className={`font-mono font-bold text-lg ${theme === 'light' ? 'text-purple-900' : 'text-purple-200'}`}>
-                      {((validationResult.actuals["WG501+WG502"] || 0) * 1000).toFixed(2)} KG
+                      {asKg(actualOf(validationResult.actuals, "WG501+WG502"))}
                     </div>
                     <div className={`text-xs ${theme === 'light' ? 'text-purple-600' : 'text-purple-400'}`}>
-                      ({(validationResult.actuals["WG501+WG502"] || 0).toFixed(3)} T)
+                      {asTons(actualOf(validationResult.actuals, "WG501+WG502"))}
                     </div>
                   </div>
                   <div>
@@ -760,10 +785,10 @@ return {
                       Bran Output (WG503):
                     </span>
                     <div className={`font-mono font-bold text-lg ${theme === 'light' ? 'text-purple-900' : 'text-purple-200'}`}>
-                      {((validationResult.actuals.WG503 || 0) * 1000).toFixed(2)} KG
+                      {asKg(actualOf(validationResult.actuals, "WG503"))}
                     </div>
                     <div className={`text-xs ${theme === 'light' ? 'text-purple-600' : 'text-purple-400'}`}>
-                      ({(validationResult.actuals.WG503 || 0).toFixed(3)} T)
+                      {asTons(actualOf(validationResult.actuals, "WG503"))}
                     </div>
                   </div>
                 </div>
@@ -772,7 +797,11 @@ return {
                     Total Output:
                   </span>
                   <div className={`font-mono font-bold text-lg ${theme === 'light' ? 'text-purple-900' : 'text-purple-200'}`}>
-                    {(((validationResult.actuals["WG501+WG502"] || 0) + (validationResult.actuals.WG503 || 0)) * 1000).toFixed(2)} KG
+                    {(() => {
+                      const f = actualOf(validationResult.actuals, "WG501+WG502");
+                      const b = actualOf(validationResult.actuals, "WG503");
+                      return f === null && b === null ? NO_DATA : asKg((f ?? 0) + (b ?? 0));
+                    })()}
                   </div>
                 </div>
               </div>

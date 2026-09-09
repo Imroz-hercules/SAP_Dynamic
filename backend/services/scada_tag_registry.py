@@ -130,21 +130,33 @@ _BOOTSTRAP: List[Dict[str, Any]] = [
     {"tag": "SL607_DAMAGED", "category": "DAMAGED", "reading_type": "single", "source_column": "SL607_DAMAGED",
      "rollover_max": None, "unit": "BAG", "is_pollable": True, "is_active": True,
      "emulator_seed": 0.0, "display_name": "Line 7 damaged bags", "sort_order": 54},
-    # Counters: seeded inactive (B3). Listed so bootstrap matches the SQL seed.
+    # Counters: ACTIVE (B3 decided and applied, 2026-09-08).
+    #
+    # This bootstrap is the runtime fallback used when the database is
+    # unreachable, so it must carry the state the app should currently
+    # believe -- not the pre-migration seed. These five were seeded inactive
+    # and migrate_b3_activate_counters.py flips them once A7 has landed and
+    # the baseline_sl60x_counter columns exist (they do; check_unmapped_tags
+    # passes). Leaving them False here meant a brief DB outage silently
+    # dropped every packing bag counter, with no sign of it on screen.
+    #
+    # migrate_seed_demo_data.py still seeds them inactive on purpose:
+    # setup_demo_migrations.py runs seed -> B3, so a fresh database ends up
+    # active by the documented route, and B3 stays the recorded decision.
     {"tag": "SL601_COUNTER", "category": "PACKING", "reading_type": "single", "source_column": "SL601_COUNTER",
-     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": False,
+     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": True,
      "emulator_seed": 0.0, "display_name": "Line 1 bag counter", "sort_order": 60},
     {"tag": "SL602_COUNTER", "category": "PACKING", "reading_type": "single", "source_column": "SL602_COUNTER",
-     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": False,
+     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": True,
      "emulator_seed": 0.0, "display_name": "Line 2 bag counter", "sort_order": 61},
     {"tag": "SL603_COUNTER", "category": "PACKING", "reading_type": "single", "source_column": "SL603_COUNTER",
-     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": False,
+     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": True,
      "emulator_seed": 0.0, "display_name": "Line 3 bag counter", "sort_order": 62},
     {"tag": "SL606_COUNTER", "category": "PACKING", "reading_type": "single", "source_column": "SL606_COUNTER",
-     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": False,
+     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": True,
      "emulator_seed": 0.0, "display_name": "Line 6 bag counter", "sort_order": 63},
     {"tag": "SL607_COUNTER", "category": "PACKING", "reading_type": "single", "source_column": "SL607_COUNTER",
-     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": False,
+     "rollover_max": 100000.0, "unit": "BAG", "is_pollable": True, "is_active": True,
      "emulator_seed": 0.0, "display_name": "Line 7 bag counter", "sort_order": 64},
 ]
 

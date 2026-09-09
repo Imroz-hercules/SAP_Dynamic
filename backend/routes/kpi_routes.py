@@ -401,20 +401,31 @@ def calc_kpis_from_row(row):
             # Convert bags to tons and calculate total capacity
             if net_hours > 0:
                 # Get additional packing data if available
-                PL606 = safe(row.get("PL606_TOT", 0.0))
-                PL607 = safe(row.get("PL607_TOT", 0.0))
-                
-                # Convert bags to tons (approximate conversions based on bag weights)
-                pl601_tons = PL601 * 0.045  # 45 KG bags
-                pl602_tons = PL602 * 0.045  # 45 KG bags  
-                pl603_tons = PL603 * 0.040  # 40 KG bran bags
-                pl606_tons = PL606 * 0.001  # 1 KG bags
-                pl607_tons = PL607 * 0.010  # 10 KG bags
-                
-                total_packing_tons = pl601_tons + pl602_tons + pl603_tons + pl606_tons + pl607_tons
+                # Bag weights, and the SCADA tag behind each line, come from
+                # palletizer_mapping -- see services/packing_capacity.py.
+                #
+                # This block used to hardcode five weights (PL601/PL602 45 kg,
+                # PL603 40, PL606 1, PL607 10) and read counters "PL606_TOT" and
+                # "PL607_TOT". Both were wrong, measured 2026-09-08:
+                #
+                #   * palletizer_mapping stores bag_weight_kg per VERSION. PL603
+                #     has a 25 kg version that the 40 kg literal overstated by 60%.
+                #   * those two tag names do not exist. The registry and the live
+                #     payload call them SL606_TOT / SL607_TOT, so row.get() hit its
+                #     0.0 default every time and two entire packing lines
+                #     contributed nothing to the figure.
+                #
+                # This is sent to SAP as PACKING_CAPACITY_TON, so a wrong value
+                # here is the exact failure this migration exists to prevent.
+                from services.packing_capacity import total_packing_tons as _packing_tons
+
+                total_packing_tons = _packing_tons(row)
                 packing_line_capacity_tons_per_hour = total_packing_tons / net_hours
-                # Cap at reasonable maximum (50 t/h)
-                packing_line_capacity_tons_per_hour = min(packing_line_capacity_tons_per_hour, 50.0)
+                # Ceiling from kpi_config, like every other KPI in this function.
+                # Was a bare min(..., 50.0) with no counterpart in the registry.
+                packing_line_capacity_tons_per_hour = kpi_clamp(
+                    "packing_line_capacity_tph", packing_line_capacity_tons_per_hour
+                )
 
         # Return calculated KPIs
         # Determine data source based on validation
@@ -2334,7 +2345,12 @@ def send_milling_kpis_to_sap():
         current_shift_code = None
         try:
             with PostgresSessionLocal() as db:
-                current_shift = get_current_shift("3130", "MILLING", db)  # Plant 3130 = MILLING
+                # Plant from system_settings default_plant, not a literal: this file
+                # already resolves it correctly elsewhere via get_default_plant().
+                # The shift code chosen here is sent to SAP as "SHIFT".
+                from routes.order_validation import get_default_plant
+
+                current_shift = get_current_shift(get_default_plant(), "MILLING", db)
                 current_shift_code = current_shift.shift_code if current_shift else None
                 logger.info(f"📋 Current shift for MILLING: {current_shift_code}")
         except Exception as shift_err:
@@ -2501,7 +2517,7 @@ def send_milling_kpis_to_sap():
             }), 200
 
         # Get SAP URL (mock or production)
-        SAP_URL = get_sap_url("/zmi_kpi_mill/MKPI", client="250")
+        SAP_URL = get_sap_url(_rc.sap_endpoint("kpi_milling"))
         logger.info(f"Using URL: {SAP_URL}")
         
         from requests.auth import HTTPBasicAuth
@@ -2759,7 +2775,7 @@ def send_packing_kpis_to_sap():
             }), 200
 
         # Get SAP URL (mock or production)
-        SAP_URL = get_sap_url("/zmi_kpi_pack/PKPI", client="250")
+        SAP_URL = get_sap_url(_rc.sap_endpoint("kpi_packing"))
         logger.info(f"Using URL: {SAP_URL}")
         
         from requests.auth import HTTPBasicAuth
@@ -3026,7 +3042,10 @@ def send_all_kpis_to_sap():
             from utils.shifts import get_current_shift
             from database import PostgresSessionLocal
             with PostgresSessionLocal() as db:
-                milling_shift = get_current_shift("3130", "MILLING", db)
+                # Plant from system_settings default_plant, not a literal (see above).
+                from routes.order_validation import get_default_plant
+
+                milling_shift = get_current_shift(get_default_plant(), "MILLING", db)
                 packing_shift = get_current_shift(None, "PACKING", db)
                 milling_shift_code = milling_shift.shift_code if milling_shift else ""
                 packing_shift_code = packing_shift.shift_code if packing_shift else ""
@@ -3080,8 +3099,8 @@ def send_all_kpis_to_sap():
         # Step 6: SAP endpoint configuration (HTTPS)
         # milling_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_mill/MKPI?sap-client=200"
         # packing_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_pack/PKPI?sap-client=200"
-        milling_endpoint = get_sap_url("/zmi_kpi_mill/MKPI")
-        packing_endpoint = get_sap_url("/zmi_kpi_pack/PKPI")
+        milling_endpoint = get_sap_url(_rc.sap_endpoint("kpi_milling"))
+        packing_endpoint = get_sap_url(_rc.sap_endpoint("kpi_packing"))
         
         logger.info(f"SAP endpoints configured (HTTPS):")
         logger.info(f"  Milling: {milling_endpoint}")
@@ -3215,7 +3234,7 @@ def send_all_kpis_to_sap():
                     elif isinstance(value, Decimal):
                         herc_payload[key] = float(value)
 
-                herc_url = get_sap_url("/zmi_raw_hercl/HERC", client="250")
+                herc_url = get_sap_url(_rc.sap_endpoint("hercules_raw"))
 
                 if get_mock_sap_mode():
                     # simple mock post
@@ -3296,9 +3315,15 @@ def test_sap_connection():
     try:
         logger.info("Testing SAP connection")
         
-        # Test endpoints (HTTPS)
-        milling_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_mill/MKPI?sap-client=200"
-        packing_endpoint = "https://vhmioqs4ci.sap.mc3.com.sa:44300/zmi_kpi_pack/PKPI?sap-client=200"
+        # Built through get_sap_url so this honours mock mode and the configured
+        # host, endpoint and client.
+        #
+        # These two were fully hardcoded production URLs carrying sap-client=200,
+        # which meant "test SAP connection" reached the real plant SAP host even
+        # with mock mode on and the Engineering page showing client 250 -- a demo
+        # could talk to production. Found 2026-09-08.
+        milling_endpoint = get_sap_url(_rc.sap_endpoint("kpi_milling"))
+        packing_endpoint = get_sap_url(_rc.sap_endpoint("kpi_packing"))
         
         results = {
             "milling_endpoint": {"url": milling_endpoint, "status": "unknown", "response": ""},
@@ -3450,7 +3475,7 @@ def send_hercules_to_sap():
                     hercules_data[key] = float(value)
         
         # Get SAP URL (mock or production)
-        SAP_URL = get_sap_url("/zmi_raw_hercl/HERC", client="250")
+        SAP_URL = get_sap_url(_rc.sap_endpoint("hercules_raw"))
         logger.info(f"Using URL: {SAP_URL}")
         
         from requests.auth import HTTPBasicAuth
